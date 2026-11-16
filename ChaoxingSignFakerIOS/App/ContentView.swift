@@ -7,7 +7,7 @@ struct ContentView: View {
         if model.user == nil {
             LoginView(model: model)
         } else {
-            CourseListView(model: model)
+            MainTabView(model: model)
         }
     }
 }

@@ -37,9 +37,6 @@ struct CourseListView: View {
                         Text(user.name).font(.subheadline)
                     }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("退出", role: .destructive) { model.logout() }
-                }
             }
             .task {
                 if model.courses.isEmpty { await model.loadCourses() }
