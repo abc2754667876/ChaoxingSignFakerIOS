@@ -10,9 +10,42 @@
 		000000000000000000000120 /* ChaoxingSignFakerIOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ChaoxingSignFakerIOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		000000000000000000000011 /* Exceptions for ChaoxingSignFakerIOS folder in ChaoxingSignFakerIOS target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Core/Location/.gitkeep,
+				Core/Media/.gitkeep,
+				Core/Networking/.gitkeep,
+				Core/Persistence/.gitkeep,
+				Core/Session/.gitkeep,
+				Core/UI/.gitkeep,
+				Data/Chaoxing/DTO/.gitkeep,
+				Domain/Models/.gitkeep,
+				Domain/Protocols/.gitkeep,
+				Features/Authentication/.gitkeep,
+				Features/Courses/.gitkeep,
+				Features/Favorites/.gitkeep,
+				Features/Groups/.gitkeep,
+				Features/Onboarding/.gitkeep,
+				Features/OtherUsers/.gitkeep,
+				Features/Settings/.gitkeep,
+				Features/Sign/GestureSign/.gitkeep,
+				Features/Sign/LocationSign/.gitkeep,
+				Features/Sign/PasswordSign/.gitkeep,
+				Features/Sign/PhotoSign/.gitkeep,
+				Features/Sign/QRCodeSign/.gitkeep,
+			);
+			target = 000000000000000100000000 /* ChaoxingSignFakerIOS */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		000000000000000000000010 /* ChaoxingSignFakerIOS */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				000000000000000000000011 /* Exceptions for ChaoxingSignFakerIOS folder in ChaoxingSignFakerIOS target */,
+			);
 			path = ChaoxingSignFakerIOS;
 			sourceTree = "<group>";
 		};
@@ -279,6 +312,7 @@
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
+				SWIFT_OBJC_BRIDGING_HEADER = "ChaoxingSignFakerIOS/Core/Crypto/ChaoxingSignFakerIOS-Bridging-Header.h";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -320,6 +354,7 @@
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
+				SWIFT_OBJC_BRIDGING_HEADER = "ChaoxingSignFakerIOS/Core/Crypto/ChaoxingSignFakerIOS-Bridging-Header.h";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;

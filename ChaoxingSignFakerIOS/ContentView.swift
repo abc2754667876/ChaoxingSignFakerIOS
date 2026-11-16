@@ -1,17 +1,17 @@
 import SwiftUI
-import Playgrounds
 
 struct ContentView: View {
+    @State private var model = AppModel()
+
     var body: some View {
-        Text("Hello, world!")
-            .padding()
+        if model.user == nil {
+            LoginView(model: model)
+        } else {
+            CourseListView(model: model)
+        }
     }
 }
 
 #Preview {
     ContentView()
-}
-
-#Playground {
-    _ = 1 + 2
 }
