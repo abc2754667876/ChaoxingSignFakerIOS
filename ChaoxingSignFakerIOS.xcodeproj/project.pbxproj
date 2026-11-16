@@ -11,7 +11,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		000000000000000000000011 /* Exceptions for ChaoxingSignFakerIOS folder in ChaoxingSignFakerIOS target */ = {
+		000000000000000000000011 /* Exceptions for "ChaoxingSignFakerIOS" folder in "ChaoxingSignFakerIOS" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Core/Location/.gitkeep,
@@ -44,7 +44,7 @@
 		000000000000000000000010 /* ChaoxingSignFakerIOS */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				000000000000000000000011 /* Exceptions for ChaoxingSignFakerIOS folder in ChaoxingSignFakerIOS target */,
+				000000000000000000000011 /* Exceptions for "ChaoxingSignFakerIOS" folder in "ChaoxingSignFakerIOS" target */,
 			);
 			path = ChaoxingSignFakerIOS;
 			sourceTree = "<group>";
@@ -312,10 +312,10 @@
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
-				SWIFT_OBJC_BRIDGING_HEADER = "ChaoxingSignFakerIOS/Core/Crypto/ChaoxingSignFakerIOS-Bridging-Header.h";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "ChaoxingSignFakerIOS/Core/Crypto/ChaoxingSignFakerIOS-Bridging-Header.h";
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -354,10 +354,10 @@
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
-				SWIFT_OBJC_BRIDGING_HEADER = "ChaoxingSignFakerIOS/Core/Crypto/ChaoxingSignFakerIOS-Bridging-Header.h";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "ChaoxingSignFakerIOS/Core/Crypto/ChaoxingSignFakerIOS-Bridging-Header.h";
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
