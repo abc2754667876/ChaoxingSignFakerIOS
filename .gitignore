@@ -1,0 +1,109 @@
+
+# ==========================================
+# macOS
+# ==========================================
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# ==========================================
+# Xcode - Build
+# ==========================================
+build/
+Build/
+DerivedData/
+*.hmap
+*.ipa
+*.app
+*.dSYM
+*.dSYM.zip
+*.xcarchive
+
+# ==========================================
+# Xcode - User Settings
+# ==========================================
+xcuserdata/
+*.xcuserstate
+*.xcuserdatad/
+*.xccheckout
+*.xcscmblueprint
+*.moved-aside
+
+# ==========================================
+# Xcode - Temporary Files
+# ==========================================
+*.swp
+*.swo
+*~
+*.orig
+*.tmp
+*.temp
+
+# ==========================================
+# Swift Package Manager (SPM)
+# ==========================================
+.build/
+.swiftpm/xcode/package.xcworkspace/xcuserdata/
+.swiftpm/xcode/package.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
+
+# ==========================================
+# CocoaPods
+# ==========================================
+Pods/
+
+# 注意：
+# Podfile 和 Podfile.lock 应提交到 Git
+# 不要忽略整个 *.xcworkspace
+
+# ==========================================
+# Carthage
+# ==========================================
+Carthage/Build/
+
+# ==========================================
+# Fastlane
+# ==========================================
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/
+fastlane/test_output/
+fastlane/readme.md
+
+# ==========================================
+# Logs and Test Results
+# ==========================================
+*.log
+*.xcresult
+*.profdata
+*.profraw
+*.gcda
+*.gcno
+
+# ==========================================
+# Secrets and Local Environment
+# ==========================================
+.env
+.env.*
+!.env.example
+*.p12
+*.p8
+*.mobileprovision
+*.provisionprofile
+*.keystore
+*.jks
+
+# ==========================================
+# IDE
+# ==========================================
+.idea/
+.vscode/
+
+# ==========================================
+# Other
+# ==========================================
+*.bak
+*.backup
+*.old
