@@ -24,9 +24,9 @@ struct ActivityListView: View {
                 ContentUnavailableView("暂无签到活动", systemImage: "tray")
             } else {
                 List(activities) { activity in
-                    if activity.isOrdinaryCandidate {
+                    if activity.isSupported {
                         NavigationLink {
-                            PhotoSignView(model: model, activity: activity)
+                            destination(for: activity)
                         } label: {
                             ActivityRow(activity: activity, isSupported: true)
                         }
@@ -51,6 +51,18 @@ struct ActivityListView: View {
             activities = try await model.loadActivities(for: course)
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    @ViewBuilder
+    private func destination(for activity: ChaoxingActivity) -> some View {
+        switch activity.kind {
+        case .ordinaryOrPhoto:
+            PhotoSignView(model: model, activity: activity)
+        case .location:
+            LocationSignView(model: model, activity: activity)
+        default:
+            EmptyView()
         }
     }
 }

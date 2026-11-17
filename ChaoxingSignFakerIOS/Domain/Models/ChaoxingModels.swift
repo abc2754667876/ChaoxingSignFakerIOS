@@ -80,6 +80,25 @@ struct ChaoxingActivity: Identifiable, Hashable, Sendable {
     var kind: ChaoxingSignKind { ChaoxingSignKind(otherID: otherID) }
     var isActive: Bool { status == 1 }
     var isOrdinaryCandidate: Bool { kind == .ordinaryOrPhoto }
+    var isSupported: Bool { kind == .ordinaryOrPhoto || kind == .location }
+}
+
+struct ChaoxingSignLocation: Equatable, Sendable {
+    let address: String
+    let latitude: Double
+    let longitude: Double
+}
+
+struct LocationSignDetail: Equatable, Sendable {
+    let latitude: Double?
+    let longitude: Double?
+    let range: Int?
+}
+
+enum LocationSignPreparation: Equatable, Sendable {
+    case ready(LocationSignDetail)
+    case alreadySigned(LocationSignDetail)
+    case expired(LocationSignDetail)
 }
 
 enum OrdinarySignPreparation: Equatable, Sendable {

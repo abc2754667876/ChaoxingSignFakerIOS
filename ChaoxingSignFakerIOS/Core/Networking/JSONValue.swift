@@ -48,6 +48,19 @@ extension Dictionary where Key == String, Value == Any {
         }
     }
 
+    func double(_ key: String) -> Double? {
+        switch self[key] {
+        case let value as Double:
+            value
+        case let value as NSNumber:
+            value.doubleValue
+        case let value as String:
+            Double(value)
+        default:
+            nil
+        }
+    }
+
     func boolean(_ key: String) -> Bool? {
         switch self[key] {
         case let value as Bool:

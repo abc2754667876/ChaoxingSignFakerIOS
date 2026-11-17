@@ -115,6 +115,17 @@ final class AppModel {
         try await api.signPhoto(activity, jpegData: jpegData)
     }
 
+    func prepareLocationSign(_ activity: ChaoxingActivity) async throws -> LocationSignPreparation {
+        try await api.prepareLocationSign(activity)
+    }
+
+    func signLocation(
+        _ activity: ChaoxingActivity,
+        location: ChaoxingSignLocation
+    ) async throws -> OrdinarySignResult {
+        try await api.signLocation(activity, location: location)
+    }
+
     func logout() {
         api.logout()
         sessionStore.clear()

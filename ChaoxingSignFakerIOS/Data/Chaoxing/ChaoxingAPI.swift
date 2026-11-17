@@ -159,6 +159,79 @@ final class ChaoxingAPI {
         return try await submitSign(activity, session: current, objectID: objectID)
     }
 
+    func prepareLocationSign(_ activity: ChaoxingActivity) async throws -> LocationSignPreparation {
+        let current = try requireSession()
+        guard activity.kind == .location else {
+            throw ChaoxingError.unsupportedSign("该活动不是位置签到")
+        }
+
+        let response = try await http.send(
+            preSignURL(activity: activity, session: current),
+            method: "POST",
+            form: [("ext", activity.ext)]
+        )
+        if response.text.contains("校验失败，未查询到活动数据") {
+            throw ChaoxingError.notInClass
+        }
+        try await postAnalysis(activeID: activity.id)
+
+        let info = try await signInfo(activeID: activity.id)
+        let detail = LocationSignDetail(
+            latitude: info.double("locationLatitude"),
+            longitude: info.double("locationLongitude"),
+            range: info.integer("locationRange")
+        )
+        if isExpired(response.text) { return .expired(detail) }
+        if isAlreadySigned(response.text) { return .alreadySigned(detail) }
+
+        guard info.integer("openCheckFaceFlag") != 1 else {
+            throw ChaoxingError.unsupportedSign("该活动要求人脸识别，当前版本暂未接入")
+        }
+        guard info.integer("ifNeedVCode") != 1 else {
+            throw ChaoxingError.captchaRequired
+        }
+        return .ready(detail)
+    }
+
+    func signLocation(
+        _ activity: ChaoxingActivity,
+        location: ChaoxingSignLocation
+    ) async throws -> OrdinarySignResult {
+        let current = try requireSession()
+        guard activity.kind == .location else {
+            throw ChaoxingError.unsupportedSign("该活动不是位置签到")
+        }
+
+        let latitude = location.latitude + Double.random(in: -0.00005...0.00005)
+        let longitude = location.longitude + Double.random(in: -0.00005...0.00005)
+        let locationResult = try locationResultJSON(
+            address: location.address,
+            latitude: latitude,
+            longitude: longitude
+        )
+        let response = try await http.send(
+            Endpoint.ordinarySign,
+            query: [
+                URLQueryItem(name: "name", value: current.user.name),
+                URLQueryItem(name: "address", value: location.address),
+                URLQueryItem(name: "activeId", value: String(activity.id)),
+                URLQueryItem(name: "courseId", value: String(activity.course.courseID)),
+                URLQueryItem(name: "uid", value: String(current.user.puid)),
+                URLQueryItem(name: "clientip", value: ""),
+                URLQueryItem(name: "latitude", value: String(latitude)),
+                URLQueryItem(name: "longitude", value: String(longitude)),
+                URLQueryItem(name: "fid", value: String(current.configuredFID)),
+                URLQueryItem(name: "appType", value: "15"),
+                URLQueryItem(name: "ifTiJiao", value: "1"),
+                URLQueryItem(name: "deviceCode", value: current.deviceCode),
+                URLQueryItem(name: "vpProbability", value: "-1"),
+                URLQueryItem(name: "vpStrategy", value: ""),
+                URLQueryItem(name: "locationResult", value: locationResult)
+            ]
+        )
+        return try parseSignResponse(response.text)
+    }
+
     private func submitSign(
         _ activity: ChaoxingActivity,
         session current: ChaoxingSession,
@@ -184,7 +257,11 @@ final class ChaoxingAPI {
             Endpoint.ordinarySign,
             query: query
         )
-        switch response.text.trimmingCharacters(in: .whitespacesAndNewlines) {
+        return try parseSignResponse(response.text)
+    }
+
+    private func parseSignResponse(_ responseText: String) throws -> OrdinarySignResult {
+        switch responseText.trimmingCharacters(in: .whitespacesAndNewlines) {
         case "success":
             return .success
         case "success2":
@@ -195,11 +272,33 @@ final class ChaoxingAPI {
             throw ChaoxingError.captchaRequired
         case let value where value.hasPrefix("checkFace_"):
             throw ChaoxingError.unsupportedSign("该活动要求人脸识别，当前版本暂未接入")
+        case let value where value.hasPrefix("errorLocation"):
+            let distance = value.split(separator: "_").dropFirst().first.flatMap { Double($0) }
+            throw ChaoxingError.outsideLocationRange(distance)
         case let value where value.contains("同一设备不允许重复签到"):
             throw ChaoxingError.signFailed("同一设备不允许重复签到")
         case let value:
             throw ChaoxingError.signFailed(value.isEmpty ? "签到失败" : value)
         }
+    }
+
+    private func locationResultJSON(
+        address: String,
+        latitude: Double,
+        longitude: Double
+    ) throws -> String {
+        let payload: [String: Any] = [
+            "result": 1,
+            "latitude": (latitude * 1_000_000).rounded() / 1_000_000,
+            "longitude": (longitude * 1_000_000).rounded() / 1_000_000,
+            "address": address,
+            "mockData": #"{"strategy":0,"probability":-1}"#
+        ]
+        let data = try JSONSerialization.data(withJSONObject: payload)
+        guard let json = String(data: data, encoding: .utf8) else {
+            throw ChaoxingError.invalidResponse("无法生成位置签到参数")
+        }
+        return json
     }
 
     private func uploadPhoto(_ jpegData: Data, session: ChaoxingSession) async throws -> String {

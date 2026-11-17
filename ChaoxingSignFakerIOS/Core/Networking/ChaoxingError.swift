@@ -10,6 +10,7 @@ enum ChaoxingError: LocalizedError, Equatable {
     case signExpired
     case notInClass
     case captchaRequired
+    case outsideLocationRange(Double?)
     case signFailed(String)
 
     var errorDescription: String? {
@@ -30,6 +31,12 @@ enum ChaoxingError: LocalizedError, Equatable {
             "当前账号不在该班级"
         case .captchaRequired:
             "本次签到需要滑块验证码，当前版本暂未接入"
+        case .outsideLocationRange(let distance):
+            if let distance {
+                "位置不在设置范围内，距离签到点\(distance.formatted(.number.precision(.fractionLength(0...1))))米"
+            } else {
+                "位置不在设置范围内"
+            }
         }
     }
 }

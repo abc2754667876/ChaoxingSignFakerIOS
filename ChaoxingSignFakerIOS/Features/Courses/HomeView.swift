@@ -155,9 +155,12 @@ struct HomeView: View {
 
     @ViewBuilder
     private func destination(for activity: ChaoxingActivity) -> some View {
-        if activity.isOrdinaryCandidate {
+        switch activity.kind {
+        case .ordinaryOrPhoto:
             PhotoSignView(model: model, activity: activity)
-        } else {
+        case .location:
+            LocationSignView(model: model, activity: activity)
+        default:
             ActivityListView(model: model, course: activity.course)
         }
     }
