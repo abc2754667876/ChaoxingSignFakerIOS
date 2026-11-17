@@ -1,7 +1,7 @@
 import Foundation
 import CryptoKit
 
-struct ChaoxingSession: Sendable {
+struct ChaoxingSession: Codable, Sendable {
     let user: ChaoxingUser
     let configuredFID: Int
     let deviceCode: String

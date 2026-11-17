@@ -6,6 +6,7 @@ import Observation
 final class AppModel {
     private let api = ChaoxingAPI()
     private let courseFavoritesStore = CourseFavoritesStore()
+    private let sessionStore = ChaoxingSessionStore()
 
     var user: ChaoxingUser?
     var courses: [ChaoxingCourse] = []
@@ -21,15 +22,23 @@ final class AppModel {
         courses.filter { favoriteCourseClassIDs.contains($0.classID) }
     }
 
+    init() {
+        guard let persisted = sessionStore.load() else { return }
+        api.restore(persisted.session, cookies: persisted.cookies)
+        user = persisted.session.user
+        favoriteCourseClassIDs = courseFavoritesStore.classIDs(for: persisted.session.user)
+    }
+
     func login(phoneNumber: String, password: String) async {
         guard !isLoggingIn else { return }
         isLoggingIn = true
         loginError = nil
         defer { isLoggingIn = false }
         do {
-            let loggedInUser = try await api.login(phoneNumber: phoneNumber, password: password).user
-            user = loggedInUser
-            favoriteCourseClassIDs = courseFavoritesStore.classIDs(for: loggedInUser)
+            let session = try await api.login(phoneNumber: phoneNumber, password: password)
+            user = session.user
+            favoriteCourseClassIDs = courseFavoritesStore.classIDs(for: session.user)
+            sessionStore.save(session: session, cookies: api.authenticationCookies)
             await loadCourses()
         } catch {
             loginError = error.localizedDescription
@@ -108,6 +117,7 @@ final class AppModel {
 
     func logout() {
         api.logout()
+        sessionStore.clear()
         user = nil
         courses = []
         ongoingActivities = []

@@ -19,7 +19,7 @@ struct LoginView: View {
                 } header: {
                     Text("学习通账号")
                 } footer: {
-                    Text("账号密码仅用于本次登录请求，不会保存；会话 Cookie 保留在本应用沙盒中。")
+                    Text("密码仅用于登录请求，不会保存；登录会话安全保存在本机，退出登录后会立即清除。")
                 }
 
                 if let error = model.loginError {

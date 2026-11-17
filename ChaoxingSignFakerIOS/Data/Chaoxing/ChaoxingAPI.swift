@@ -24,6 +24,15 @@ final class ChaoxingAPI {
         self.http = http ?? HTTPClient()
     }
 
+    var authenticationCookies: [HTTPCookie] {
+        http.chaoxingCookies
+    }
+
+    func restore(_ persistedSession: ChaoxingSession, cookies: [HTTPCookie]) {
+        session = persistedSession
+        http.restore(cookies: cookies)
+    }
+
     func login(phoneNumber: String, password: String) async throws -> ChaoxingSession {
         let phoneNumber = phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !phoneNumber.isEmpty else {

@@ -1,11 +1,11 @@
 import Foundation
 
-struct ChaoxingSchool: Identifiable, Hashable, Sendable {
+struct ChaoxingSchool: Identifiable, Hashable, Codable, Sendable {
     let id: Int
     let name: String
 }
 
-struct ChaoxingUser: Hashable, Sendable {
+struct ChaoxingUser: Hashable, Codable, Sendable {
     let uid: Int
     let puid: Int
     let defaultFID: Int

@@ -28,9 +28,18 @@ final class HTTPClient {
     }
 
     func clearChaoxingCookies() {
+        chaoxingCookies.forEach(cookieStorage.deleteCookie)
+    }
+
+    var chaoxingCookies: [HTTPCookie] {
         cookieStorage.cookies?.filter {
             $0.domain.hasSuffix("chaoxing.com")
-        }.forEach(cookieStorage.deleteCookie)
+        } ?? []
+    }
+
+    func restore(cookies: [HTTPCookie]) {
+        clearChaoxingCookies()
+        cookies.forEach(cookieStorage.setCookie)
     }
 
     func send(

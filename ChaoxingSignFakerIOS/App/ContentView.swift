@@ -8,6 +8,11 @@ struct ContentView: View {
             LoginView(model: model)
         } else {
             MainTabView(model: model)
+                .task {
+                    if model.courses.isEmpty {
+                        await model.refreshHome()
+                    }
+                }
         }
     }
 }
