@@ -19,14 +19,10 @@ struct MainTabView: View {
                 Label("多账号", systemImage: "person.2")
             }
 
-            PlaceholderTabView(
-                title: "位置",
-                systemImage: "location",
-                description: "可在这里管理常用签到位置。"
-            )
-            .tabItem {
-                Label("位置", systemImage: "location")
-            }
+            LocationView()
+                .tabItem {
+                    Label("位置", systemImage: "location")
+                }
 
             ProfileView(model: model)
                 .tabItem {
