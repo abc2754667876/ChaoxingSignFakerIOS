@@ -352,7 +352,7 @@ private extension ChaoxingCourse {
 private extension ChaoxingSignKind {
     var homeSystemImage: String {
         switch self {
-        case .ordinaryOrPhoto: "pencil.line"
+        case .ordinaryOrPhoto: "hand.tap"
         case .gesture: "hand.draw"
         case .location: "location"
         case .qrCode: "qrcode"
