@@ -51,7 +51,7 @@ struct LocationSignView: View {
                             Capsule()
                                 .fill(signed ? .green : .blue)
                                 .frame(height: 48)
-                            Text(signed ? "已签到" : "选择已收藏位置签到")
+                            Text(signed ? "已签到" : "使用已收藏位置签到")
                                 .foregroundStyle(.white)
                         }
                     }
@@ -94,7 +94,7 @@ struct LocationSignView: View {
 
                         Spacer()
                         
-                        Button("使用此位置签到") {
+                        Button("确认签到") {
                             
                         }
                         .buttonStyle(.borderedProminent)
@@ -114,7 +114,7 @@ struct LocationSignView: View {
 
                         Spacer()
                         
-                        Button("使用此位置签到") {
+                        Button("确认签到") {
                             
                         }
                         .buttonStyle(.borderedProminent)
@@ -134,7 +134,7 @@ struct LocationSignView: View {
 
                         Spacer()
                         
-                        Button("使用此位置签到") {
+                        Button("确认签到") {
                             // TODO: 这里点击后直接使用此位置签到
                         }
                         .buttonStyle(.borderedProminent)
@@ -143,7 +143,7 @@ struct LocationSignView: View {
                 .listSectionSeparator(.hidden, edges: .top)
             }
             .listStyle(.plain)
-            .navigationTitle("选择收藏位置")
+            .navigationTitle("使用收藏位置签到")
             .navigationBarTitleDisplayMode(.inline)
         }
     }
