@@ -227,16 +227,18 @@ struct LocationView: View {
         isResolvingAddress = true
 
         Task {
+            let bd09Coordinate = CoordinateConverter.wgs84ToBD09(coordinate)
             let placemark = try? await CLGeocoder().reverseGeocodeLocation(
                 CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
             ).first
-            let address = placemark.map(Self.address) ?? Self.coordinateDescription(coordinate)
+            let address = placemark.map(Self.address) ?? Self.coordinateDescription(bd09Coordinate)
             let name = placemark?.name?.trimmingCharacters(in: .whitespacesAndNewlines)
             pendingLocation = SavedLocation(
                 address: address,
                 name: name?.isEmpty == false ? name! : "收藏位置",
-                latitude: coordinate.latitude,
-                longitude: coordinate.longitude
+                latitude: bd09Coordinate.latitude,
+                longitude: bd09Coordinate.longitude,
+                coordinateSystem: .bd09
             )
             isResolvingAddress = false
         }
@@ -387,7 +389,11 @@ private final class LocationPermissionManager: NSObject, CLLocationManagerDelega
 
 private extension SavedLocation {
     var coordinate: CLLocationCoordinate2D {
-        CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        return switch coordinateSystem {
+        case .wgs84: coordinate
+        case .bd09: CoordinateConverter.bd09ToWGS84(coordinate)
+        }
     }
 }
 
