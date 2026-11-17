@@ -146,14 +146,17 @@ struct LocationView: View {
                     )
                 } else {
                     List {
-                        ForEach(filteredLocations) { location in
-                            LocationItem(
-                                location: location,
-                                onSelect: { show(location) },
-                                onRename: { beginRenaming(location) },
-                                onDelete: { locationToDelete = location }
-                            )
+                        Section {
+                            ForEach(filteredLocations) { location in
+                                LocationItem(
+                                    location: location,
+                                    onSelect: { show(location) },
+                                    onRename: { beginRenaming(location) },
+                                    onDelete: { locationToDelete = location }
+                                )
+                            }
                         }
+                        .listSectionSeparator(.hidden, edges: .top)
                     }
                     .listStyle(.plain)
                 }
@@ -311,10 +314,6 @@ private struct LocationItem: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
-//                Text("\(location.latitude.formattedCoordinate), \(location.longitude.formattedCoordinate)")
-//                    .font(.caption.monospacedDigit())
-//                    .foregroundStyle(.tertiary)
-            }
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
             .onTapGesture(perform: onSelect)
