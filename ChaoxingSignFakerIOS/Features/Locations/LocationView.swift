@@ -323,7 +323,7 @@ private struct LocationItem: View {
                 Image(systemName: "pencil.line")
                     .foregroundStyle(.secondary)
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(.plain)
             .accessibilityLabel("重命名\(location.name)")
 
             Button(role: .destructive, action: onDelete) {
