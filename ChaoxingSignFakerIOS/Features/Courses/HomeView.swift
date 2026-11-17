@@ -156,7 +156,7 @@ struct HomeView: View {
     @ViewBuilder
     private func destination(for activity: ChaoxingActivity) -> some View {
         if activity.isOrdinaryCandidate {
-            OrdinarySignView(model: model, activity: activity)
+            PhotoSignView(model: model, activity: activity)
         } else {
             ActivityListView(model: model, course: activity.course)
         }

@@ -59,22 +59,62 @@ final class HTTPClient {
         }
 
         do {
-            let (data, response) = try await session.data(for: request)
-            guard let response = response as? HTTPURLResponse else {
-                throw ChaoxingError.invalidResponse("服务器响应无效")
-            }
-            guard (200...399).contains(response.statusCode) else {
-                if response.statusCode == 401 || response.statusCode == 403 {
-                    throw ChaoxingError.sessionExpired
-                }
-                throw ChaoxingError.server("网络请求失败（HTTP \(response.statusCode)）")
-            }
-            return HTTPResponse(data: data, response: response)
+            return try await execute(request)
         } catch let error as ChaoxingError {
             throw error
         } catch {
             throw ChaoxingError.server(error.localizedDescription)
         }
+    }
+
+    func sendMultipart(
+        _ url: URL,
+        fields: [(String, String)],
+        fileField: String,
+        filename: String,
+        mimeType: String,
+        fileData: Data
+    ) async throws -> HTTPResponse {
+        let boundary = "Boundary-\(UUID().uuidString)"
+        var body = Data()
+
+        for (name, value) in fields {
+            body.appendUTF8("--\(boundary)\r\n")
+            body.appendUTF8("Content-Disposition: form-data; name=\"\(name)\"\r\n\r\n")
+            body.appendUTF8("\(value)\r\n")
+        }
+        body.appendUTF8("--\(boundary)\r\n")
+        body.appendUTF8("Content-Disposition: form-data; name=\"\(fileField)\"; filename=\"\(filename)\"\r\n")
+        body.appendUTF8("Content-Type: \(mimeType)\r\n\r\n")
+        body.append(fileData)
+        body.appendUTF8("\r\n--\(boundary)--\r\n")
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.httpBody = body
+
+        do {
+            return try await execute(request)
+        } catch let error as ChaoxingError {
+            throw error
+        } catch {
+            throw ChaoxingError.server(error.localizedDescription)
+        }
+    }
+
+    private func execute(_ request: URLRequest) async throws -> HTTPResponse {
+        let (data, response) = try await session.data(for: request)
+        guard let response = response as? HTTPURLResponse else {
+            throw ChaoxingError.invalidResponse("服务器响应无效")
+        }
+        guard (200...399).contains(response.statusCode) else {
+            if response.statusCode == 401 || response.statusCode == 403 {
+                throw ChaoxingError.sessionExpired
+            }
+            throw ChaoxingError.server("网络请求失败（HTTP \(response.statusCode)）")
+        }
+        return HTTPResponse(data: data, response: response)
     }
 
     private func formEncoded(_ values: [(String, String)]) -> String {
@@ -88,5 +128,11 @@ final class HTTPClient {
         allowed.insert(charactersIn: "-._*")
         return value.addingPercentEncoding(withAllowedCharacters: allowed)?
             .replacingOccurrences(of: "%20", with: "+") ?? value
+    }
+}
+
+private extension Data {
+    mutating func appendUTF8(_ value: String) {
+        append(value.data(using: .utf8) ?? Data())
     }
 }

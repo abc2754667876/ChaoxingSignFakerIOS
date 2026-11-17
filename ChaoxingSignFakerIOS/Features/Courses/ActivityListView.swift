@@ -26,7 +26,7 @@ struct ActivityListView: View {
                 List(activities) { activity in
                     if activity.isOrdinaryCandidate {
                         NavigationLink {
-                            OrdinarySignView(model: model, activity: activity)
+                            PhotoSignView(model: model, activity: activity)
                         } label: {
                             ActivityRow(activity: activity, isSupported: true)
                         }

@@ -98,6 +98,14 @@ final class AppModel {
         try await api.signOrdinary(activity)
     }
 
+    func prepareOrdinaryOrPhotoSign(_ activity: ChaoxingActivity) async throws -> OrdinaryOrPhotoSignPreparation {
+        try await api.prepareOrdinaryOrPhotoSign(activity)
+    }
+
+    func signPhoto(_ activity: ChaoxingActivity, jpegData: Data) async throws -> OrdinarySignResult {
+        try await api.signPhoto(activity, jpegData: jpegData)
+    }
+
     func logout() {
         api.logout()
         user = nil

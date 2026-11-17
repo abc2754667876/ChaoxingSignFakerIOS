@@ -12,10 +12,13 @@ final class ChaoxingAPI {
         static let analysis = URL(string: "https://mobilelearn.chaoxing.com/pptSign/analysis?vs=1&DB_STRATEGY=RANDOM")!
         static let analysis2 = URL(string: "https://mobilelearn.chaoxing.com/pptSign/analysis2?DB_STRATEGY=RANDOM")!
         static let ordinarySign = URL(string: "https://mobilelearn.chaoxing.com/pptSign/stuSignajax")!
+        static let cloudToken = URL(string: "https://pan-yz.chaoxing.com/api/token/uservalid")!
+        static let cloudUpload = URL(string: "https://pan-yz.chaoxing.com/upload")!
     }
 
     private let http: HTTPClient
     private(set) var session: ChaoxingSession?
+    private var cachedCloudToken: String?
 
     init(http: HTTPClient? = nil) {
         self.http = http ?? HTTPClient()
@@ -31,6 +34,7 @@ final class ChaoxingAPI {
         }
 
         http.clearChaoxingCookies()
+        cachedCloudToken = nil
         let encryptedUser = try ChaoxingCrypto.encryptLoginValue(phoneNumber)
         let encryptedPassword = try ChaoxingCrypto.encryptLoginValue(password)
         let response = try await http.send(
@@ -67,6 +71,7 @@ final class ChaoxingAPI {
 
     func logout() {
         session = nil
+        cachedCloudToken = nil
         http.clearChaoxingCookies()
     }
 
@@ -89,9 +94,19 @@ final class ChaoxingAPI {
     }
 
     func prepareOrdinarySign(_ activity: ChaoxingActivity) async throws -> OrdinarySignPreparation {
+        switch try await prepareOrdinaryOrPhotoSign(activity) {
+        case .ready(isPhotoRequired: false): return .ready
+        case .ready(isPhotoRequired: true):
+            throw ChaoxingError.unsupportedSign("该活动要求上传照片")
+        case .alreadySigned: return .alreadySigned
+        case .expired: return .expired
+        }
+    }
+
+    func prepareOrdinaryOrPhotoSign(_ activity: ChaoxingActivity) async throws -> OrdinaryOrPhotoSignPreparation {
         let current = try requireSession()
         guard activity.kind == .ordinaryOrPhoto else {
-            throw ChaoxingError.unsupportedSign("当前仅支持普通点击签到")
+            throw ChaoxingError.unsupportedSign("该活动不是普通或拍照签到")
         }
 
         let response = try await http.send(
@@ -108,9 +123,6 @@ final class ChaoxingAPI {
         if isAlreadySigned(response.text) { return .alreadySigned }
 
         let info = try await signInfo(activeID: activity.id)
-        guard info.integer("ifphoto") != 1 else {
-            throw ChaoxingError.unsupportedSign("该活动要求拍照，当前版本只支持普通点击签到")
-        }
         guard info.integer("openCheckFaceFlag") != 1 else {
             throw ChaoxingError.unsupportedSign("该活动要求人脸识别，当前版本暂未接入")
         }
@@ -120,26 +132,47 @@ final class ChaoxingAPI {
         guard info.integer("ifNeedVCode") != 1 else {
             throw ChaoxingError.captchaRequired
         }
-        return .ready
+        return .ready(isPhotoRequired: info.integer("ifphoto") == 1)
     }
 
     func signOrdinary(_ activity: ChaoxingActivity) async throws -> OrdinarySignResult {
         let current = try requireSession()
+        return try await submitSign(activity, session: current, objectID: nil)
+    }
+
+    func signPhoto(_ activity: ChaoxingActivity, jpegData: Data) async throws -> OrdinarySignResult {
+        let current = try requireSession()
+        guard !jpegData.isEmpty else {
+            throw ChaoxingError.invalidInput("照片数据为空")
+        }
+        let objectID = try await uploadPhoto(jpegData, session: current)
+        return try await submitSign(activity, session: current, objectID: objectID)
+    }
+
+    private func submitSign(
+        _ activity: ChaoxingActivity,
+        session current: ChaoxingSession,
+        objectID: String?
+    ) async throws -> OrdinarySignResult {
+        var query = [
+            URLQueryItem(name: "activeId", value: String(activity.id)),
+            URLQueryItem(name: "courseId", value: String(activity.course.courseID)),
+            URLQueryItem(name: "uid", value: String(current.user.puid)),
+            URLQueryItem(name: "clientip", value: ""),
+            URLQueryItem(name: "useragent", value: ""),
+            URLQueryItem(name: "latitude", value: "-1"),
+            URLQueryItem(name: "longitude", value: "-1"),
+            URLQueryItem(name: "appType", value: "15"),
+            URLQueryItem(name: "fid", value: String(current.configuredFID)),
+            URLQueryItem(name: "name", value: current.user.name),
+            URLQueryItem(name: "deviceCode", value: current.deviceCode)
+        ]
+        if let objectID {
+            query.append(URLQueryItem(name: "objectId", value: objectID))
+        }
         let response = try await http.send(
             Endpoint.ordinarySign,
-            query: [
-                URLQueryItem(name: "activeId", value: String(activity.id)),
-                URLQueryItem(name: "courseId", value: String(activity.course.courseID)),
-                URLQueryItem(name: "uid", value: String(current.user.puid)),
-                URLQueryItem(name: "clientip", value: ""),
-                URLQueryItem(name: "useragent", value: ""),
-                URLQueryItem(name: "latitude", value: "-1"),
-                URLQueryItem(name: "longitude", value: "-1"),
-                URLQueryItem(name: "appType", value: "15"),
-                URLQueryItem(name: "fid", value: String(current.configuredFID)),
-                URLQueryItem(name: "name", value: current.user.name),
-                URLQueryItem(name: "deviceCode", value: current.deviceCode)
-            ]
+            query: query
         )
         switch response.text.trimmingCharacters(in: .whitespacesAndNewlines) {
         case "success":
@@ -157,6 +190,43 @@ final class ChaoxingAPI {
         case let value:
             throw ChaoxingError.signFailed(value.isEmpty ? "签到失败" : value)
         }
+    }
+
+    private func uploadPhoto(_ jpegData: Data, session: ChaoxingSession) async throws -> String {
+        let token: String
+        if let cachedCloudToken {
+            token = cachedCloudToken
+        } else {
+            let tokenResponse = try await http.send(Endpoint.cloudToken)
+            let payload = try JSONReader.object(from: tokenResponse.data)
+            guard let value = payload.string("_token"), !value.isEmpty else {
+                throw ChaoxingError.invalidResponse("无法获取图片上传凭证")
+            }
+            cachedCloudToken = value
+            token = value
+        }
+
+        var components = URLComponents(url: Endpoint.cloudUpload, resolvingAgainstBaseURL: false)!
+        components.queryItems = [
+            URLQueryItem(name: "_from", value: "mobilelearn"),
+            URLQueryItem(name: "_token", value: token)
+        ]
+        guard let uploadURL = components.url else {
+            throw ChaoxingError.invalidInput("图片上传地址无效")
+        }
+        let response = try await http.sendMultipart(
+            uploadURL,
+            fields: [("puid", String(session.user.puid))],
+            fileField: "file",
+            filename: "\(UUID().uuidString).jpg",
+            mimeType: "image/jpeg",
+            fileData: jpegData
+        )
+        let payload = try JSONReader.object(from: response.data)
+        guard let objectID = payload.string("objectId"), !objectID.isEmpty else {
+            throw ChaoxingError.invalidResponse(payload.string("msg") ?? "图片上传失败")
+        }
+        return objectID
     }
 
     private func requireSession() throws -> ChaoxingSession {

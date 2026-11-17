@@ -92,3 +92,9 @@ enum OrdinarySignResult: Equatable, Sendable {
     case success
 }
 
+enum OrdinaryOrPhotoSignPreparation: Equatable, Sendable {
+    case ready(isPhotoRequired: Bool)
+    case alreadySigned
+    case expired
+}
+
