@@ -177,8 +177,8 @@ final class ChaoxingAPI {
 
         let info = try await signInfo(activeID: activity.id)
         let detail = LocationSignDetail(
-            latitude: info.double("locationLatitude"),
-            longitude: info.double("locationLongitude"),
+            bd09Latitude: info.double("locationLatitude"),
+            bd09Longitude: info.double("locationLongitude"),
             range: info.integer("locationRange")
         )
         if isExpired(response.text) { return .expired(detail) }
@@ -202,8 +202,9 @@ final class ChaoxingAPI {
             throw ChaoxingError.unsupportedSign("该活动不是位置签到")
         }
 
-        let latitude = location.latitude + Double.random(in: -0.00005...0.00005)
-        let longitude = location.longitude + Double.random(in: -0.00005...0.00005)
+        // One rounded BD-09 pair for both representations; no extra conversion/jitter.
+        let latitude = location.bd09Latitude
+        let longitude = location.bd09Longitude
         let locationResult = try locationResultJSON(
             address: location.address,
             latitude: latitude,
@@ -289,8 +290,8 @@ final class ChaoxingAPI {
     ) throws -> String {
         let payload: [String: Any] = [
             "result": 1,
-            "latitude": (latitude * 1_000_000).rounded() / 1_000_000,
-            "longitude": (longitude * 1_000_000).rounded() / 1_000_000,
+            "latitude": latitude,
+            "longitude": longitude,
             "address": address,
             "mockData": #"{"strategy":0,"probability":-1}"#
         ]

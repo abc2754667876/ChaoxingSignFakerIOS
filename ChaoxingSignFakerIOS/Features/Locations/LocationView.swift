@@ -12,6 +12,7 @@ import SwiftUI
 
 struct LocationView: View {
     private let store: SavedLocationStore
+    @AppStorage("mapCoordinateSystem") private var mapCoordinateSystem = MapCoordinateSystem.gcj02
 
     @State private var locations: [SavedLocation]
     @State private var showSheet = true
@@ -44,7 +45,7 @@ struct LocationView: View {
                         Marker(
                             location.name,
                             systemImage: "star.fill",
-                            coordinate: location.coordinate
+                            coordinate: mapCoordinateSystem.fromWGS84(location.wgs84Coordinate)
                         )
                         .tint(.orange)
                     }
@@ -106,6 +107,11 @@ struct LocationView: View {
                                     .tag(style)
                             }
                         }
+                        Picker("底图坐标模式", selection: $mapCoordinateSystem) {
+                            ForEach(MapCoordinateSystem.allCases) { system in
+                                Text(system.title).tag(system)
+                            }
+                        }
                     } label: {
                         Image(systemName: displayStyle.systemImage)
                     }
@@ -123,7 +129,7 @@ struct LocationView: View {
                 }
                 Button("取消", role: .cancel) {}
             } message: { location in
-                Text("\(location.address)\n纬度：\(location.latitude.formattedCoordinate)  经度：\(location.longitude.formattedCoordinate)")
+                Text("\(location.address)\nWGS-84 纬度：\(location.latitude.formattedCoordinate)  经度：\(location.longitude.formattedCoordinate)")
             }
             .onAppear {
                 permissionManager.requestWhenInUseAuthorization()
@@ -223,22 +229,22 @@ struct LocationView: View {
     }
 
     private func prepareLocation(at coordinate: CLLocationCoordinate2D) {
+        let coordinate = mapCoordinateSystem.toWGS84(coordinate)
         showSheet = false
         isResolvingAddress = true
 
         Task {
-            let bd09Coordinate = CoordinateConverter.wgs84ToBD09(coordinate)
             let placemark = try? await CLGeocoder().reverseGeocodeLocation(
                 CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
             ).first
-            let address = placemark.map(Self.address) ?? Self.coordinateDescription(bd09Coordinate)
+            let address = placemark.map(Self.address) ?? Self.coordinateDescription(coordinate)
             let name = placemark?.name?.trimmingCharacters(in: .whitespacesAndNewlines)
             pendingLocation = SavedLocation(
                 address: address,
                 name: name?.isEmpty == false ? name! : "收藏位置",
-                latitude: bd09Coordinate.latitude,
-                longitude: bd09Coordinate.longitude,
-                coordinateSystem: .bd09
+                latitude: coordinate.latitude,
+                longitude: coordinate.longitude,
+                coordinateSystem: .wgs84
             )
             isResolvingAddress = false
         }
@@ -247,7 +253,7 @@ struct LocationView: View {
     private func show(_ location: SavedLocation) {
         position = .region(
             MKCoordinateRegion(
-                center: location.coordinate,
+                center: mapCoordinateSystem.fromWGS84(location.wgs84Coordinate),
                 span: MKCoordinateSpan(latitudeDelta: 0.006, longitudeDelta: 0.006)
             )
         )
@@ -383,16 +389,6 @@ private final class LocationPermissionManager: NSObject, CLLocationManagerDelega
     func requestWhenInUseAuthorization() {
         if manager.authorizationStatus == .notDetermined {
             manager.requestWhenInUseAuthorization()
-        }
-    }
-}
-
-private extension SavedLocation {
-    var coordinate: CLLocationCoordinate2D {
-        let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
-        return switch coordinateSystem {
-        case .wgs84: coordinate
-        case .bd09: CoordinateConverter.bd09ToWGS84(coordinate)
         }
     }
 }

@@ -273,11 +273,9 @@ struct LocationSignView: View {
     private static func signLocation(from location: CLLocation) async -> ChaoxingSignLocation {
         let placemark = try? await CLGeocoder().reverseGeocodeLocation(location).first
         let address = placemark.map(address) ?? coordinateDescription(location.coordinate)
-        let coordinate = CoordinateConverter.wgs84ToBD09(location.coordinate)
         return ChaoxingSignLocation(
             address: address,
-            latitude: coordinate.latitude,
-            longitude: coordinate.longitude
+            wgs84Coordinate: location.coordinate
         )
     }
 
@@ -390,21 +388,6 @@ private final class CurrentLocationProvider: NSObject, CLLocationManagerDelegate
         guard let continuation else { return }
         self.continuation = nil
         continuation.resume(with: result)
-    }
-}
-
-private extension SavedLocation {
-    var signLocation: ChaoxingSignLocation {
-        let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
-        let bd09Coordinate = switch coordinateSystem {
-        case .wgs84: CoordinateConverter.wgs84ToBD09(coordinate)
-        case .bd09: coordinate
-        }
-        return ChaoxingSignLocation(
-            address: address,
-            latitude: bd09Coordinate.latitude,
-            longitude: bd09Coordinate.longitude
-        )
     }
 }
 

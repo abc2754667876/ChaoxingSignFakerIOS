@@ -8,9 +8,13 @@ enum CoordinateConverter {
 
     static func wgs84ToBD09(_ coordinate: CLLocationCoordinate2D) -> CLLocationCoordinate2D {
         guard isInChina(coordinate) else { return coordinate }
-        let gcj02 = wgs84ToGCJ02(coordinate)
-        let x = gcj02.longitude
-        let y = gcj02.latitude
+        return gcj02ToBD09(wgs84ToGCJ02(coordinate))
+    }
+
+    static func gcj02ToBD09(_ coordinate: CLLocationCoordinate2D) -> CLLocationCoordinate2D {
+        guard isInChina(coordinate) else { return coordinate }
+        let x = coordinate.longitude
+        let y = coordinate.latitude
         let z = sqrt(x * x + y * y) + 0.00002 * sin(y * xPi)
         let theta = atan2(y, x) + 0.000003 * cos(x * xPi)
         return CLLocationCoordinate2D(
@@ -20,19 +24,23 @@ enum CoordinateConverter {
     }
 
     static func bd09ToWGS84(_ coordinate: CLLocationCoordinate2D) -> CLLocationCoordinate2D {
+        gcj02ToWGS84(bd09ToGCJ02(coordinate))
+    }
+
+    static func bd09ToGCJ02(_ coordinate: CLLocationCoordinate2D) -> CLLocationCoordinate2D {
         guard isInChina(coordinate) else { return coordinate }
         let x = coordinate.longitude - 0.0065
         let y = coordinate.latitude - 0.006
         let z = sqrt(x * x + y * y) - 0.00002 * sin(y * xPi)
         let theta = atan2(y, x) - 0.000003 * cos(x * xPi)
-        let gcj02 = CLLocationCoordinate2D(
+        return CLLocationCoordinate2D(
             latitude: z * sin(theta),
             longitude: z * cos(theta)
         )
-        return gcj02ToWGS84(gcj02)
     }
 
-    private static func wgs84ToGCJ02(
+    /// Core Location GPS coordinates -> mainland map coordinates.
+    static func wgs84ToGCJ02(
         _ coordinate: CLLocationCoordinate2D
     ) -> CLLocationCoordinate2D {
         guard isInChina(coordinate) else { return coordinate }
@@ -55,7 +63,8 @@ enum CoordinateConverter {
         )
     }
 
-    private static func gcj02ToWGS84(
+    /// Mainland map coordinates -> Core Location GPS coordinates.
+    static func gcj02ToWGS84(
         _ coordinate: CLLocationCoordinate2D
     ) -> CLLocationCoordinate2D {
         var estimate = coordinate
@@ -94,5 +103,34 @@ enum CoordinateConverter {
     private static func isInChina(_ coordinate: CLLocationCoordinate2D) -> Bool {
         (0.8293...55.8271).contains(coordinate.latitude)
             && (72.004...137.8347).contains(coordinate.longitude)
+    }
+}
+
+/// MapKit's mainland (高德) map and Core Location do not share a coordinate datum.
+/// Keep this boundary explicit; CLLocationCoordinate2D itself carries no datum tag.
+enum MapCoordinateSystem: String, CaseIterable, Identifiable {
+    case gcj02
+    case wgs84
+
+    var id: Self { self }
+    var title: String {
+        switch self {
+        case .gcj02: "大陆高德底图（GCJ-02）"
+        case .wgs84: "国际底图（WGS-84）"
+        }
+    }
+
+    func toWGS84(_ coordinate: CLLocationCoordinate2D) -> CLLocationCoordinate2D {
+        switch self {
+        case .gcj02: CoordinateConverter.gcj02ToWGS84(coordinate)
+        case .wgs84: coordinate
+        }
+    }
+
+    func fromWGS84(_ coordinate: CLLocationCoordinate2D) -> CLLocationCoordinate2D {
+        switch self {
+        case .gcj02: CoordinateConverter.wgs84ToGCJ02(coordinate)
+        case .wgs84: coordinate
+        }
     }
 }

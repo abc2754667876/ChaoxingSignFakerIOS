@@ -6,8 +6,19 @@
 	objectVersion = 90;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		000000000000000000000150 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 000000000000000000000000 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 000000000000000100000000;
+			remoteInfo = ChaoxingSignFakerIOS;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		000000000000000000000120 /* ChaoxingSignFakerIOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ChaoxingSignFakerIOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		000000000000000000000121 /* ChaoxingSignFakerIOSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ChaoxingSignFakerIOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -49,10 +60,20 @@
 			path = ChaoxingSignFakerIOS;
 			sourceTree = "<group>";
 		};
+		000000000000000000000012 /* ChaoxingSignFakerIOSTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = ChaoxingSignFakerIOSTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		000000000000000130000000 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+			);
+		};
+		000000000000000230000000 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
 			);
@@ -64,6 +85,7 @@
 			isa = PBXGroup;
 			children = (
 				000000000000000000000010 /* ChaoxingSignFakerIOS */,
+				000000000000000000000012 /* ChaoxingSignFakerIOSTests */,
 				000000000000000000000020 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -72,6 +94,7 @@
 			isa = PBXGroup;
 			children = (
 				000000000000000000000120 /* ChaoxingSignFakerIOS.app */,
+				000000000000000000000121 /* ChaoxingSignFakerIOSTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -97,6 +120,27 @@
 			productReference = 000000000000000000000120 /* ChaoxingSignFakerIOS.app */;
 			productType = "com.apple.product-type.application";
 		};
+		000000000000000200000000 /* ChaoxingSignFakerIOSTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 000000000000000210000000 /* Build configuration list for PBXNativeTarget "ChaoxingSignFakerIOSTests" */;
+			buildPhases = (
+				000000000000000220000000 /* Sources */,
+				000000000000000230000000 /* Frameworks */,
+				000000000000000240000000 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				000000000000000000000160 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				000000000000000000000012 /* ChaoxingSignFakerIOSTests */,
+			);
+			name = ChaoxingSignFakerIOSTests;
+			productName = ChaoxingSignFakerIOSTests;
+			productReference = 000000000000000000000121 /* ChaoxingSignFakerIOSTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -109,6 +153,10 @@
 				TargetAttributes = {
 					000000000000000100000000 = {
 						CreatedOnToolsVersion = 26.3;
+					};
+					000000000000000200000000 = {
+						CreatedOnToolsVersion = 26.3;
+						TestTargetID = 000000000000000100000000;
 					};
 				};
 			};
@@ -127,12 +175,18 @@
 			projectRoot = "";
 			targets = (
 				000000000000000100000000 /* ChaoxingSignFakerIOS */,
+				000000000000000200000000 /* ChaoxingSignFakerIOSTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		000000000000000140000000 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+			);
+		};
+		000000000000000240000000 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			files = (
 			);
@@ -145,7 +199,20 @@
 			files = (
 			);
 		};
+		000000000000000220000000 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+			);
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		000000000000000000000160 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 000000000000000100000000 /* ChaoxingSignFakerIOS */;
+			targetProxy = 000000000000000000000150 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		000000000000000011000000 /* Debug configuration for PBXProject "ChaoxingSignFakerIOS" */ = {
@@ -370,6 +437,62 @@
 			};
 			name = Release;
 		};
+		000000000000000211000000 /* Debug configuration for PBXNativeTarget "ChaoxingSignFakerIOSTests" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = R7PHPV8K99;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.chengzhizhang.ChaoxingSignFakerIOSTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ChaoxingSignFakerIOS.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/ChaoxingSignFakerIOS";
+				TEST_TARGET_NAME = ChaoxingSignFakerIOS;
+			};
+			name = Debug;
+		};
+		000000000000000212000000 /* Release configuration for PBXNativeTarget "ChaoxingSignFakerIOSTests" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = R7PHPV8K99;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.chengzhizhang.ChaoxingSignFakerIOSTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ChaoxingSignFakerIOS.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/ChaoxingSignFakerIOS";
+				TEST_TARGET_NAME = ChaoxingSignFakerIOS;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -386,6 +509,14 @@
 			buildConfigurations = (
 				000000000000000111000000 /* Debug configuration for PBXNativeTarget "ChaoxingSignFakerIOS" */,
 				000000000000000112000000 /* Release configuration for PBXNativeTarget "ChaoxingSignFakerIOS" */,
+			);
+			defaultConfigurationName = Release;
+		};
+		000000000000000210000000 /* Build configuration list for PBXNativeTarget "ChaoxingSignFakerIOSTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				000000000000000211000000 /* Debug configuration for PBXNativeTarget "ChaoxingSignFakerIOSTests" */,
+				000000000000000212000000 /* Release configuration for PBXNativeTarget "ChaoxingSignFakerIOSTests" */,
 			);
 			defaultConfigurationName = Release;
 		};

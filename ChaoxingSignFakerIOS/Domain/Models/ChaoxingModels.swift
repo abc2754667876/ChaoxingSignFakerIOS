@@ -1,3 +1,4 @@
+import CoreLocation
 import Foundation
 
 struct ChaoxingSchool: Identifiable, Hashable, Codable, Sendable {
@@ -85,13 +86,22 @@ struct ChaoxingActivity: Identifiable, Hashable, Sendable {
 
 struct ChaoxingSignLocation: Equatable, Sendable {
     let address: String
-    let latitude: Double
-    let longitude: Double
+    let bd09Latitude: Double
+    let bd09Longitude: Double
+
+    /// Both GPS and favorites enter here as normalized WGS-84. Only this boundary
+    /// converts to the BD-09 representation consumed by the H5 sign endpoint.
+    init(address: String, wgs84Coordinate: CLLocationCoordinate2D) {
+        self.address = address
+        let coordinate = CoordinateConverter.wgs84ToBD09(wgs84Coordinate)
+        bd09Latitude = (coordinate.latitude * 1_000_000).rounded() / 1_000_000
+        bd09Longitude = (coordinate.longitude * 1_000_000).rounded() / 1_000_000
+    }
 }
 
 struct LocationSignDetail: Equatable, Sendable {
-    let latitude: Double?
-    let longitude: Double?
+    let bd09Latitude: Double?
+    let bd09Longitude: Double?
     let range: Int?
 }
 
