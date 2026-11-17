@@ -16,34 +16,43 @@ struct OrdinarySignView: View {
     @State private var state: State = .loading
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 8) {
             Image(systemName: icon)
-                .font(.system(size: 54))
+                .resizable()
+                .scaledToFit()
+                .frame(width: 64, height: 64)
                 .foregroundStyle(color)
-            Text(activity.title)
-                .font(.title2.bold())
+                .contentTransition(.symbolEffect(.replace))
+
+            Text("普通签到")
+                .font(.largeTitle)
             Text(message)
+                .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
 
-            if state == .ready {
-                Button("确认签到") {
-                    Task { await sign() }
+            Button(action: performButtonAction) {
+                ZStack {
+                    Capsule()
+                        .fill(color)
+                        .frame(height: 48)
+                    if isProcessing {
+                        ProgressView()
+                            .tint(.white)
+                    } else {
+                        Text(buttonTitle)
+                            .foregroundStyle(.white)
+                    }
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-            } else if case .failure = state {
-                Button("重新检查") {
-                    Task { await prepare() }
-                }
-                .buttonStyle(.bordered)
             }
+            .disabled(!canPerformButtonAction)
+            .padding(.top, 72)
         }
-        .padding(28)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal)
         .navigationTitle("普通签到")
         .navigationBarTitleDisplayMode(.inline)
         .task { await prepare() }
+        .animation(.default, value: state)
     }
 
     private var icon: String {
@@ -51,7 +60,7 @@ struct OrdinarySignView: View {
         case .loading, .signing: "hourglass"
         case .ready: "hand.tap"
         case .success: "checkmark.circle.fill"
-        case .alreadySigned: "checkmark.seal.fill"
+        case .alreadySigned: "checkmark.circle.fill"
         case .expired: "clock.badge.xmark"
         case .failure: "exclamationmark.triangle.fill"
         }
@@ -68,7 +77,7 @@ struct OrdinarySignView: View {
     private var message: String {
         switch state {
         case .loading: "正在检查活动状态与签到要求…"
-        case .ready: "活动允许普通点击签到。提交前请确认这是你的真实签到意图。"
+        case .ready: "点击下方按钮签到"
         case .signing: "正在提交签到…"
         case .success: "签到成功"
         case .alreadySigned: "你已经签到过了"
@@ -77,32 +86,70 @@ struct OrdinarySignView: View {
         }
     }
 
+    private var isProcessing: Bool {
+        state == .loading || state == .signing
+    }
+
+    private var canPerformButtonAction: Bool {
+        switch state {
+        case .ready, .failure: true
+        case .loading, .signing, .success, .alreadySigned, .expired: false
+        }
+    }
+
+    private var buttonTitle: String {
+        switch state {
+        case .ready: "确认签到"
+        case .success, .alreadySigned: "已签到"
+        case .expired: "签到已截止"
+        case .failure: "重新检查"
+        case .loading, .signing: ""
+        }
+    }
+
+    private func performButtonAction() {
+        switch state {
+        case .ready:
+            Task { await sign() }
+        case .failure:
+            Task { await prepare() }
+        case .loading, .signing, .success, .alreadySigned, .expired:
+            break
+        }
+    }
+
+    private func updateState(_ newState: State) {
+        withAnimation {
+            state = newState
+        }
+    }
+
     private func prepare() async {
-        state = .loading
+        updateState(.loading)
         do {
             switch try await model.prepareOrdinarySign(activity) {
-            case .ready: state = .ready
-            case .alreadySigned: state = .alreadySigned
-            case .expired: state = .expired
+            case .ready: updateState(.ready)
+            case .alreadySigned: updateState(.alreadySigned)
+            case .expired: updateState(.expired)
             }
         } catch {
-            state = .failure(error.localizedDescription)
+            updateState(.failure(error.localizedDescription))
         }
     }
 
     private func sign() async {
-        state = .signing
+        updateState(.signing)
         do {
             _ = try await model.signOrdinary(activity)
-            state = .success
+            updateState(.success)
         } catch let error as ChaoxingError {
             switch error {
-            case .alreadySigned: state = .alreadySigned
-            case .signExpired: state = .expired
-            default: state = .failure(error.localizedDescription)
+            case .alreadySigned: updateState(.alreadySigned)
+            case .signExpired: updateState(.expired)
+            default: updateState(.failure(error.localizedDescription))
             }
         } catch {
-            state = .failure(error.localizedDescription)
+            updateState(.failure(error.localizedDescription))
         }
     }
 }
