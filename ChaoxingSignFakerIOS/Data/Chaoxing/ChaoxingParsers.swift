@@ -51,7 +51,9 @@ enum ChaoxingParsers {
                 courseID: courseID,
                 classID: classID,
                 className: name,
-                imageURL: course.string("imageurl").flatMap(URL.init(string:)),
+                imageURL: course.string("imageurl").flatMap {
+                    URL(string: $0.replacingOccurrences(of: "http://", with: "https://"))
+                },
                 schoolName: course.string("schools")
             )
         }

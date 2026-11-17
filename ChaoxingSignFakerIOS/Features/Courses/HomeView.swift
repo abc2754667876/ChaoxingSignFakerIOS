@@ -7,90 +7,112 @@
 
 import SwiftUI
 
-// TODO: 实际实现时，按照项目现有实际结构对视图、逻辑等进行拆分。这里为了方便写参考UI临时写到一起了。
-
 struct HomeView: View {
+    @Bindable var model: AppModel
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    
+
                     // 正在进行
-                    // TODO: 若当前没有正在进行的签到，则此部分不显示
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("正在进行")
-                            .font(.headline)
-                            .foregroundStyle(.secondary)
-                        
-                        VStack(spacing: 12) {
-                            OnGoingCheckIn(image: "location", type: "位置签到", course: "数据挖掘", time: "11-1 14:28")
-                            
-                            Divider()
-                                .padding(.leading, 56)
-                            
-                            OnGoingCheckIn(image: "qrcode", type: "二维码签到", course: "算法分析与设计", time: "11-2 9:28")
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(16)
-                        .background(
-                            Color.white,
-                            in: RoundedRectangle(cornerRadius: 20)
-                        )
-                    }
-                    .padding(.horizontal, 16)
-                    
-                    // 收藏的课程
-                    // TODO: 若没有收藏的课程，则此部分不显示
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("收藏的课程")
-                            .font(.headline)
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 16)
-                        
-                        ScrollView(.horizontal) {
-                            HStack(spacing: 16) {
-                                LoveCourse(
-                                    image: "image1",
-                                    name: "数据挖掘",
-                                    teacher: "马春梅"
-                                )
-                                
-                                LoveCourse(
-                                    image: "image2",
-                                    name: "高级算法设计与分析",
-                                    teacher: "王淑琴"
-                                )
+                    if !model.ongoingActivities.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("正在进行")
+                                .font(.headline)
+                                .foregroundStyle(.secondary)
+
+                            VStack(spacing: 12) {
+                                ForEach(Array(model.ongoingActivities.enumerated()), id: \.element.id) { index, activity in
+                                    NavigationLink {
+                                        destination(for: activity)
+                                    } label: {
+                                        OnGoingCheckIn(
+                                            image: activity.kind.systemImage,
+                                            type: activity.kind.title,
+                                            course: activity.course.courseName,
+                                            time: endTimeText(for: activity)
+                                        )
+                                    }
+                                    .buttonStyle(.plain)
+
+                                    if index < model.ongoingActivities.count - 1 {
+                                        Divider()
+                                            .padding(.leading, 56)
+                                    }
+                                }
                             }
+                            .frame(maxWidth: .infinity)
+                            .padding(16)
+                            .background(
+                                Color.white,
+                                in: RoundedRectangle(cornerRadius: 20)
+                            )
                         }
-                        .contentMargins(
-                            .horizontal,
-                            16,
-                            for: .scrollContent
-                        )
-                        .scrollIndicators(.hidden)
+                        .padding(.horizontal, 16)
                     }
-                    
+
+                    // 收藏的课程
+                    if !model.favoriteCourses.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("收藏的课程")
+                                .font(.headline)
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 16)
+
+                            ScrollView(.horizontal) {
+                                HStack(spacing: 16) {
+                                    ForEach(model.favoriteCourses) { course in
+                                        LoveCourse(course: course)
+                                    }
+                                }
+                            }
+                            .contentMargins(
+                                .horizontal,
+                                16,
+                                for: .scrollContent
+                            )
+                            .scrollIndicators(.hidden)
+                        }
+                    }
+
                     // 课程列表
                     VStack(alignment: .leading, spacing: 12) {
                         Text("课程列表")
                             .font(.headline)
                             .foregroundStyle(.secondary)
                             .padding(.horizontal, 16)
-                        
+
                         VStack(spacing: 12) {
-                            CourseItem(image: "image1", course: "数据挖掘", teacher: "马春梅", love: true)
-                            
-                            Divider()
-                            
-                            CourseItem(image: "image2", course: "高级算法设计与分析", teacher: "王淑琴", love: true)
-                            
-                            Divider()
-                            
-                            CourseItem(image: "image3", course: "高级计算机系统结构", teacher: "胡燕翔")
-                            
-                            Divider()
-                            
-                            CourseItem(image: "image4", course: "论文写作指导", teacher: "张珑")
+                            if model.isLoadingCourses && model.courses.isEmpty {
+                                ProgressView("正在加载课程…")
+                                    .frame(maxWidth: .infinity)
+                            } else if let error = model.courseError, model.courses.isEmpty {
+                                ContentUnavailableView {
+                                    Label("课程加载失败", systemImage: "wifi.exclamationmark")
+                                } description: {
+                                    Text(error)
+                                } actions: {
+                                    Button("重试") {
+                                        Task { await model.refreshHome() }
+                                    }
+                                }
+                            } else if model.courses.isEmpty {
+                                ContentUnavailableView("暂无课程", systemImage: "books.vertical")
+                            } else {
+                                ForEach(Array(displayedCourses.enumerated()), id: \.element.id) { index, course in
+                                    CourseItem(
+                                        course: course,
+                                        isFavorite: model.favoriteCourseClassIDs.contains(course.classID)
+                                    ) {
+                                        model.toggleFavorite(course)
+                                    }
+
+                                    if index < displayedCourses.count - 1 {
+                                        Divider()
+                                    }
+                                }
+                            }
                         }
                         .padding(16)
                         .frame(maxWidth: .infinity)
@@ -104,8 +126,14 @@ struct HomeView: View {
                 .padding(.vertical, 16)
             }
             .background(Color(uiColor: .systemGroupedBackground))
+            .refreshable {
+                await model.refreshHome()
+            }
             .navigationTitle("首页")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(for: ChaoxingCourse.self) { course in
+                ActivityListView(model: model, course: course)
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(action: {}) {
@@ -114,47 +142,89 @@ struct HomeView: View {
                     }
                 }
             }
+            .task {
+                if model.courses.isEmpty {
+                    await model.loadCourses()
+                }
+                if model.ongoingActivities.isEmpty {
+                    await model.loadOngoingActivities()
+                }
+            }
         }
+    }
+
+    @ViewBuilder
+    private func destination(for activity: ChaoxingActivity) -> some View {
+        if activity.isOrdinaryCandidate {
+            OrdinarySignView(model: model, activity: activity)
+        } else {
+            ActivityListView(model: model, course: activity.course)
+        }
+    }
+
+    private func endTimeText(for activity: ChaoxingActivity) -> String {
+        if let endTime = activity.endTime {
+            return "将于\(endTime.formatted(.dateTime.month().day().hour().minute()))结束"
+        }
+        if !activity.endTimeDescription.isEmpty {
+            return activity.endTimeDescription
+        }
+        return "签到正在进行中"
+    }
+
+    private var displayedCourses: [ChaoxingCourse] {
+        model.courses.enumerated()
+            .sorted { lhs, rhs in
+                let isLeftFavorite = model.favoriteCourseClassIDs.contains(lhs.element.classID)
+                let isRightFavorite = model.favoriteCourseClassIDs.contains(rhs.element.classID)
+                if isLeftFavorite != isRightFavorite {
+                    return isLeftFavorite
+                }
+                return lhs.offset < rhs.offset
+            }
+            .map(\.element)
     }
 }
 
 struct CourseItem: View {
-    var image: String
-    var course: String
-    var teacher: String
-    var love: Bool? = false
-    
+    let course: ChaoxingCourse
+    let isFavorite: Bool
+    let onToggleFavorite: () -> Void
+
     var body: some View {
         HStack {
-            Image(image)
-                .resizable()
-                .scaledToFill()
-                .frame(width: 72, height: 48)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-            
-            VStack(alignment: .leading) {
-                HStack(spacing: 0) {
-                    Text(course)
-                        .font(.headline)
-                    Button(action: {}) {
-                        Image(systemName: "chevron.right")
+            NavigationLink(value: course) {
+                HStack {
+                    CourseArtwork(url: course.imageURL)
+                        .frame(width: 72, height: 48)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+
+                    VStack(alignment: .leading) {
+                        HStack(spacing: 0) {
+                            Text(course.courseName)
+                                .font(.headline)
+                                .lineLimit(1)
+                            Image(systemName: "chevron.right")
+                                .foregroundStyle(.secondary)
+                        }
+                        Text(course.teacherDisplayName)
                             .foregroundStyle(.secondary)
+                            .font(.subheadline)
+                            .lineLimit(1)
                     }
-                    .buttonStyle(.plain)
+
+                    Spacer()
                 }
-                Text(teacher)
-                    .foregroundStyle(.secondary)
-                    .font(.subheadline)
+                .contentShape(Rectangle())
             }
-            
-            Spacer()
-            
-            Button(action: {}) {// TODO: 点击后进行收藏/取消收藏操作，本地持久化
-                if let _love = love {
-                    Image(systemName: _love ? "star.fill" : "star")
-                        .foregroundStyle(.yellow)
-                }
+            .buttonStyle(.plain)
+
+            Button(action: onToggleFavorite) {
+                Image(systemName: isFavorite ? "star.fill" : "star")
+                    .foregroundStyle(.yellow)
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isFavorite ? "取消收藏" : "收藏课程")
         }
     }
 }
@@ -164,7 +234,7 @@ struct OnGoingCheckIn: View {
     var type: String
     var course: String
     var time: String
-    
+
     var body: some View {
         HStack {
             ZStack {
@@ -184,7 +254,7 @@ struct OnGoingCheckIn: View {
                 Text(course)
                     .foregroundStyle(.secondary)
                     .font(.subheadline)
-                Text("将于\(time)结束")
+                Text(time)
                     .foregroundStyle(.secondary)
                     .font(.subheadline)
             }
@@ -198,55 +268,87 @@ struct OnGoingCheckIn: View {
 }
 
 struct LoveCourse: View {
-    var image: String
-    var name: String
-    var teacher: String
-    
+    let course: ChaoxingCourse
+
     var body: some View {
-        VStack(spacing: 0) {
-            Image(image)
-                .resizable()
-                .scaledToFill()
-                .frame(width: 196, height: 148)
+        NavigationLink(value: course) {
+            VStack(spacing: 0) {
+                CourseArtwork(url: course.imageURL)
+                    .frame(width: 196, height: 148)
+                    .clipShape(
+                        UnevenRoundedRectangle(
+                            topLeadingRadius: 20,
+                            topTrailingRadius: 20
+                        )
+                    )
+
+                ZStack {
+                    CourseArtwork(url: course.imageURL)
+                        .frame(width: 196, height: 116)
+                    HStack {
+                        VStack(alignment: .leading) {
+                            Text(course.courseName)
+                                .lineLimit(2)
+
+                            Spacer()
+
+                            Text(course.teacherDisplayName)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                        Spacer()
+                    }
+                    .padding()
+                    .background(.regularMaterial)
+                    .frame(width: 196, height: 116)
+                }
+                .frame(width: 196, height: 116)
                 .clipShape(
                     UnevenRoundedRectangle(
-                        topLeadingRadius: 20,
-                        topTrailingRadius: 20
+                        bottomLeadingRadius: 20,
+                        bottomTrailingRadius: 20
                     )
                 )
-            
-            ZStack {
-                Image(image)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct CourseArtwork: View {
+    let url: URL?
+
+    var body: some View {
+        AsyncImage(url: url) { phase in
+            if let image = phase.image {
+                image
                     .resizable()
                     .scaledToFill()
-                    .frame(width: 196, height: 116)
-                HStack {
-                    VStack(alignment: .leading) {
-                        Text(name)
-                        
-                        Spacer()
-                        
-                        Text(teacher)
-                            .font(.caption)
+            } else {
+                Color.secondary.opacity(0.12)
+                    .overlay {
+                        Image(systemName: "book.closed")
                             .foregroundStyle(.secondary)
                     }
-                    Spacer()
-                }
-                .padding()
-                .background(.regularMaterial)
-                .frame(width: 196, height: 116)
             }
-            .frame(width: 196, height: 116)
-            .clipShape(
-                UnevenRoundedRectangle(
-                    bottomLeadingRadius: 20,
-                    bottomTrailingRadius: 20
-                )
-            )
         }
+        .clipped()
+    }
+}
+
+private extension ChaoxingCourse {
+    var teacherDisplayName: String {
+        if let teacherName, !teacherName.isEmpty {
+            return teacherName
+        }
+        if let schoolName, !schoolName.isEmpty {
+            return schoolName
+        }
+        return "教师信息暂无"
     }
 }
 
 #Preview {
-    HomeView()
+    HomeView(model: AppModel())
 }

@@ -5,7 +5,7 @@ struct MainTabView: View {
 
     var body: some View {
         TabView {
-            CourseListView(model: model)
+            HomeView(model: model)
                 .tabItem {
                     Label("首页", systemImage: "house")
                 }
