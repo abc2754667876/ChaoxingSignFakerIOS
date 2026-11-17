@@ -28,7 +28,7 @@ struct HomeView: View {
                                         destination(for: activity)
                                     } label: {
                                         OnGoingCheckIn(
-                                            image: activity.kind.systemImage,
+                                            image: activity.kind.homeSystemImage,
                                             type: activity.kind.title,
                                             course: activity.course.courseName,
                                             time: endTimeText(for: activity)
@@ -346,6 +346,19 @@ private extension ChaoxingCourse {
             return schoolName
         }
         return "教师信息暂无"
+    }
+}
+
+private extension ChaoxingSignKind {
+    var homeSystemImage: String {
+        switch self {
+        case .ordinaryOrPhoto: "pencil.line"
+        case .gesture: "hand.draw"
+        case .location: "location"
+        case .qrCode: "qrcode"
+        case .password: "ellipsis.rectangle"
+        case .unknown: "questionmark.circle"
+        }
     }
 }
 
