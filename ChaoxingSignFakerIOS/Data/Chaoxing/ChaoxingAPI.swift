@@ -119,10 +119,11 @@ final class ChaoxingAPI {
         }
         try await postAnalysis(activeID: activity.id)
 
-        if isExpired(response.text) { return .expired }
-        if isAlreadySigned(response.text) { return .alreadySigned }
-
         let info = try await signInfo(activeID: activity.id)
+        let isPhotoRequired = info.integer("ifphoto") == 1
+        if isExpired(response.text) { return .expired(isPhotoRequired: isPhotoRequired) }
+        if isAlreadySigned(response.text) { return .alreadySigned(isPhotoRequired: isPhotoRequired) }
+
         guard info.integer("openCheckFaceFlag") != 1 else {
             throw ChaoxingError.unsupportedSign("该活动要求人脸识别，当前版本暂未接入")
         }
@@ -132,7 +133,7 @@ final class ChaoxingAPI {
         guard info.integer("ifNeedVCode") != 1 else {
             throw ChaoxingError.captchaRequired
         }
-        return .ready(isPhotoRequired: info.integer("ifphoto") == 1)
+        return .ready(isPhotoRequired: isPhotoRequired)
     }
 
     func signOrdinary(_ activity: ChaoxingActivity) async throws -> OrdinarySignResult {

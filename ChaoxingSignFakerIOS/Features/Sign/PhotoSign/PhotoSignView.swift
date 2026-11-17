@@ -25,40 +25,44 @@ struct PhotoSignView: View {
     @State private var isShowingCameraUnavailable = false
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 12) {
-                Image(systemName: icon)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 64, height: 64)
-                    .foregroundStyle(color)
-                    .contentTransition(.symbolEffect(.replace))
-
-                Text(title)
-                    .font(.largeTitle)
-                Text(message)
-                    .font(.subheadline)
-                    .foregroundStyle(state.isFailure ? .orange : .secondary)
-                    .multilineTextAlignment(.center)
-
-                if let selectedImage {
-                    Image(uiImage: selectedImage)
+        GeometryReader { geometry in
+            ScrollView {
+                VStack(spacing: 12) {
+                    Image(systemName: icon)
                         .resizable()
                         .scaledToFit()
-                        .frame(maxHeight: 300)
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 16)
-                                .stroke(.secondary.opacity(0.2))
-                        }
-                        .padding(.top, 12)
-                }
+                        .frame(width: 64, height: 64)
+                        .foregroundStyle(color)
+                        .contentTransition(.symbolEffect(.replace))
 
-                controls
-                    .padding(.top, selectedImage == nil ? 72 : 20)
+                    Text(title)
+                        .font(.largeTitle)
+                    Text(message)
+                        .font(.subheadline)
+                        .foregroundStyle(state.isFailure ? .orange : .secondary)
+                        .multilineTextAlignment(.center)
+
+                    if let selectedImage {
+                        Image(uiImage: selectedImage)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxHeight: 300)
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 16)
+                                    .stroke(.secondary.opacity(0.2))
+                            }
+                            .padding(.top, 12)
+                    }
+
+                    controls
+                        .padding(.top, selectedImage == nil ? 72 : 20)
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 24)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: geometry.size.height)
             }
-            .padding(.horizontal)
-            .padding(.vertical, 24)
         }
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
@@ -212,10 +216,12 @@ struct PhotoSignView: View {
                 self.isPhotoRequired = isPhotoRequired
                 hasPrepared = true
                 updateState(.ready)
-            case .alreadySigned:
+            case .alreadySigned(let isPhotoRequired):
+                self.isPhotoRequired = isPhotoRequired
                 hasPrepared = true
                 updateState(.alreadySigned)
-            case .expired:
+            case .expired(let isPhotoRequired):
+                self.isPhotoRequired = isPhotoRequired
                 hasPrepared = true
                 updateState(.expired)
             }

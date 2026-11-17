@@ -94,7 +94,7 @@ enum OrdinarySignResult: Equatable, Sendable {
 
 enum OrdinaryOrPhotoSignPreparation: Equatable, Sendable {
     case ready(isPhotoRequired: Bool)
-    case alreadySigned
-    case expired
+    case alreadySigned(isPhotoRequired: Bool)
+    case expired(isPhotoRequired: Bool)
 }
 
