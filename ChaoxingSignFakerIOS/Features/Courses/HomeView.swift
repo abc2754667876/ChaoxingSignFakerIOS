@@ -158,6 +158,8 @@ struct HomeView: View {
         switch activity.kind {
         case .ordinaryOrPhoto:
             PhotoSignView(model: model, activity: activity)
+        case .gesture:
+            GestureSignView(model: model, activity: activity)
         case .location:
             LocationSignView(model: model, activity: activity)
         default:

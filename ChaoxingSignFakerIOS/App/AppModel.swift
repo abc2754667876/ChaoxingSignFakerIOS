@@ -115,6 +115,22 @@ final class AppModel {
         try await api.signPhoto(activity, jpegData: jpegData)
     }
 
+    func prepareGestureSign(_ activity: ChaoxingActivity) async throws -> GestureSignPreparation {
+        try await api.prepareGestureSign(activity)
+    }
+
+    func checkGestureSignCode(_ code: String, for activity: ChaoxingActivity) async throws -> Bool {
+        try await api.checkGestureSignCode(code, for: activity)
+    }
+
+    func signGesture(
+        _ activity: ChaoxingActivity,
+        code: String,
+        location: ChaoxingSignLocation?
+    ) async throws -> OrdinarySignResult {
+        try await api.signGesture(activity, code: code, location: location)
+    }
+
     func prepareLocationSign(_ activity: ChaoxingActivity) async throws -> LocationSignPreparation {
         try await api.prepareLocationSign(activity)
     }

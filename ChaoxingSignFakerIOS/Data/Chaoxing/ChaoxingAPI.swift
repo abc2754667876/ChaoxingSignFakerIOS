@@ -12,6 +12,7 @@ final class ChaoxingAPI {
         static let analysis = URL(string: "https://mobilelearn.chaoxing.com/pptSign/analysis?vs=1&DB_STRATEGY=RANDOM")!
         static let analysis2 = URL(string: "https://mobilelearn.chaoxing.com/pptSign/analysis2?DB_STRATEGY=RANDOM")!
         static let ordinarySign = URL(string: "https://mobilelearn.chaoxing.com/pptSign/stuSignajax")!
+        static let checkGesture = URL(string: "https://mobilelearn.chaoxing.com/widget/sign/pcStuSignController/checkSignCode")!
         static let cloudToken = URL(string: "https://pan-yz.chaoxing.com/api/token/uservalid")!
         static let cloudUpload = URL(string: "https://pan-yz.chaoxing.com/upload")!
     }
@@ -159,6 +160,101 @@ final class ChaoxingAPI {
         return try await submitSign(activity, session: current, objectID: objectID)
     }
 
+    func prepareGestureSign(_ activity: ChaoxingActivity) async throws -> GestureSignPreparation {
+        let current = try requireSession()
+        guard activity.kind == .gesture else {
+            throw ChaoxingError.unsupportedSign("该活动不是手势签到")
+        }
+
+        let response = try await http.send(
+            preSignURL(activity: activity, session: current),
+            method: "POST",
+            form: [("ext", activity.ext)]
+        )
+        if response.text.contains("校验失败，未查询到活动数据") {
+            throw ChaoxingError.notInClass
+        }
+        try await postAnalysis(activeID: activity.id)
+
+        let info = try await signInfo(activeID: activity.id)
+        let isLocationRequired = info.integer("ifopenAddress") == 1
+        if isExpired(response.text) { return .expired(isLocationRequired: isLocationRequired) }
+        if isAlreadySigned(response.text) {
+            return .alreadySigned(isLocationRequired: isLocationRequired)
+        }
+
+        guard info.integer("openCheckFaceFlag") != 1 else {
+            throw ChaoxingError.unsupportedSign("该活动要求人脸识别，当前版本暂未接入")
+        }
+        guard info.integer("ifNeedVCode") != 1 else {
+            throw ChaoxingError.captchaRequired
+        }
+        return .ready(isLocationRequired: isLocationRequired)
+    }
+
+    func checkGestureSignCode(_ code: String, for activity: ChaoxingActivity) async throws -> Bool {
+        _ = try requireSession()
+        guard activity.kind == .gesture else {
+            throw ChaoxingError.unsupportedSign("该活动不是手势签到")
+        }
+        guard !code.isEmpty, code.allSatisfy({ ("1"..."9").contains(String($0)) }) else {
+            throw ChaoxingError.invalidInput("手势图案无效")
+        }
+
+        let response = try await http.send(
+            Endpoint.checkGesture,
+            query: [
+                URLQueryItem(name: "activeId", value: String(activity.id)),
+                URLQueryItem(name: "signCode", value: code)
+            ]
+        )
+        return try JSONReader.object(from: response.data).integer("result") == 1
+    }
+
+    func signGesture(
+        _ activity: ChaoxingActivity,
+        code: String,
+        location: ChaoxingSignLocation?
+    ) async throws -> OrdinarySignResult {
+        let current = try requireSession()
+        guard activity.kind == .gesture else {
+            throw ChaoxingError.unsupportedSign("该活动不是手势签到")
+        }
+        guard !code.isEmpty else {
+            throw ChaoxingError.invalidInput("请先绘制手势图案")
+        }
+
+        var query = [
+            URLQueryItem(name: "activeId", value: String(activity.id)),
+            URLQueryItem(name: "courseId", value: String(activity.course.courseID)),
+            URLQueryItem(name: "uid", value: String(current.user.puid)),
+            URLQueryItem(name: "clientip", value: ""),
+            URLQueryItem(name: "latitude", value: location.map { coordinateString($0.bd09Latitude) } ?? "-1"),
+            URLQueryItem(name: "longitude", value: location.map { coordinateString($0.bd09Longitude) } ?? "-1"),
+            URLQueryItem(name: "appType", value: "15"),
+            URLQueryItem(name: "fid", value: String(current.configuredFID)),
+            URLQueryItem(name: "name", value: current.user.name),
+            URLQueryItem(name: "signCode", value: code),
+            URLQueryItem(name: "deviceCode", value: current.deviceCode)
+        ]
+        if let location {
+            query.append(
+                URLQueryItem(
+                    name: "location",
+                    value: try locationJSON(location, includesMockData: false)
+                )
+            )
+            query.append(
+                URLQueryItem(
+                    name: "locationResult",
+                    value: try locationJSON(location, includesMockData: true)
+                )
+            )
+        }
+        let response = try await http.send(Endpoint.ordinarySign, query: query)
+        return try parseSignResponse(response.text)
+    }
+
     func prepareLocationSign(_ activity: ChaoxingActivity) async throws -> LocationSignPreparation {
         let current = try requireSession()
         guard activity.kind == .location else {
@@ -205,11 +301,7 @@ final class ChaoxingAPI {
         // One rounded BD-09 pair for both representations; no extra conversion/jitter.
         let latitude = location.bd09Latitude
         let longitude = location.bd09Longitude
-        let locationResult = try locationResultJSON(
-            address: location.address,
-            latitude: latitude,
-            longitude: longitude
-        )
+        let locationResult = try locationJSON(location, includesMockData: true)
         let response = try await http.send(
             Endpoint.ordinarySign,
             query: [
@@ -283,23 +375,28 @@ final class ChaoxingAPI {
         }
     }
 
-    private func locationResultJSON(
-        address: String,
-        latitude: Double,
-        longitude: Double
+    private func locationJSON(
+        _ location: ChaoxingSignLocation,
+        includesMockData: Bool
     ) throws -> String {
-        let payload: [String: Any] = [
+        var payload: [String: Any] = [
             "result": 1,
-            "latitude": latitude,
-            "longitude": longitude,
-            "address": address,
-            "mockData": #"{"strategy":0,"probability":-1}"#
+            "latitude": location.bd09Latitude,
+            "longitude": location.bd09Longitude,
+            "address": location.address
         ]
+        if includesMockData {
+            payload["mockData"] = #"{"strategy":0,"probability":-1}"#
+        }
         let data = try JSONSerialization.data(withJSONObject: payload)
         guard let json = String(data: data, encoding: .utf8) else {
             throw ChaoxingError.invalidResponse("无法生成位置签到参数")
         }
         return json
+    }
+
+    private func coordinateString(_ value: Double) -> String {
+        String(format: "%.6f", locale: Locale(identifier: "en_US_POSIX"), value)
     }
 
     private func uploadPhoto(_ jpegData: Data, session: ChaoxingSession) async throws -> String {
