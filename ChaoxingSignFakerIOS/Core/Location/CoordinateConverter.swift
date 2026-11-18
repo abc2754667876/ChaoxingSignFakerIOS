@@ -108,17 +108,9 @@ enum CoordinateConverter {
 
 /// MapKit's mainland (高德) map and Core Location do not share a coordinate datum.
 /// Keep this boundary explicit; CLLocationCoordinate2D itself carries no datum tag.
-enum MapCoordinateSystem: String, CaseIterable, Identifiable {
+enum MapCoordinateSystem: String {
     case gcj02
     case wgs84
-
-    var id: Self { self }
-    var title: String {
-        switch self {
-        case .gcj02: "大陆高德底图（GCJ-02）"
-        case .wgs84: "国际底图（WGS-84）"
-        }
-    }
 
     func toWGS84(_ coordinate: CLLocationCoordinate2D) -> CLLocationCoordinate2D {
         switch self {

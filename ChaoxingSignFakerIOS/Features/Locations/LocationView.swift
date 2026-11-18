@@ -12,7 +12,7 @@ import SwiftUI
 
 struct LocationView: View {
     private let store: SavedLocationStore
-    @AppStorage("mapCoordinateSystem") private var mapCoordinateSystem = MapCoordinateSystem.gcj02
+    private let mapCoordinateSystem = MapCoordinateSystem.gcj02
 
     @State private var locations: [SavedLocation]
     @State private var showSheet = true
@@ -105,11 +105,6 @@ struct LocationView: View {
                             ForEach(MapDisplayStyle.allCases) { style in
                                 Label(style.title, systemImage: style.systemImage)
                                     .tag(style)
-                            }
-                        }
-                        Picker("底图坐标模式", selection: $mapCoordinateSystem) {
-                            ForEach(MapCoordinateSystem.allCases) { system in
-                                Text(system.title).tag(system)
                             }
                         }
                     } label: {
