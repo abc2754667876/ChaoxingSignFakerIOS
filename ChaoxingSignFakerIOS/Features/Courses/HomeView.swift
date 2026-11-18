@@ -28,7 +28,7 @@ struct HomeView: View {
                                         destination(for: activity)
                                     } label: {
                                         OnGoingCheckIn(
-                                            image: activity.kind.homeSystemImage,
+                                            image: activity.kind.systemImage,
                                             type: activity.kind.title,
                                             course: activity.course.courseName,
                                             time: endTimeText(for: activity)
@@ -137,7 +137,7 @@ struct HomeView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(action: {}) {
-                        Image(systemName: "qrcode.viewfinder")
+                        Image(systemName: ChaoxingSignKind.qrCode.systemImage)
                         // TODO: 扫码签到，暂不实现，此TODO保留
                     }
                 }
@@ -355,19 +355,6 @@ private extension ChaoxingCourse {
             return schoolName
         }
         return "教师信息暂无"
-    }
-}
-
-private extension ChaoxingSignKind {
-    var homeSystemImage: String {
-        switch self {
-        case .ordinaryOrPhoto: "hand.tap"
-        case .gesture: "hand.draw"
-        case .location: "location"
-        case .qrCode: "qrcode"
-        case .password: "ellipsis.rectangle"
-        case .unknown: "questionmark.circle"
-        }
     }
 }
 

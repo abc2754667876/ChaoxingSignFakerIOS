@@ -58,7 +58,7 @@ struct OrdinarySignView: View {
     private var icon: String {
         switch state {
         case .loading, .signing: "hourglass"
-        case .ready: "hand.tap"
+        case .ready: activity.kind.systemImage
         case .success: "checkmark.circle.fill"
         case .alreadySigned: "checkmark.circle.fill"
         case .expired: "clock.badge.xmark"

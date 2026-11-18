@@ -144,7 +144,7 @@ struct LocationSignView: View {
     private var icon: String {
         switch state {
         case .loading, .locating, .signing: "hourglass"
-        case .ready: "location"
+        case .ready: activity.kind.systemImage
         case .success, .alreadySigned: "checkmark.circle.fill"
         case .expired: "clock.badge.xmark"
         case .failure: "exclamationmark.triangle.fill"

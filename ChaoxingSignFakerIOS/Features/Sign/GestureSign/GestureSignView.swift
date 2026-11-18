@@ -154,7 +154,7 @@ struct GestureSignView: View {
                     Task { await sign(code: verifiedCode, location: nil) }
                 }
 
-                actionButton("重新绘制手势", systemImage: "hand.draw", color: .secondary) {
+                actionButton("重新绘制手势", systemImage: activity.kind.systemImage, color: .secondary) {
                     redrawPattern()
                 }
             }
@@ -238,7 +238,7 @@ struct GestureSignView: View {
     private var icon: String {
         return switch state {
         case .loading, .checking, .locating, .signing: "hourglass"
-        case .ready: verifiedCode == nil ? "hand.draw" : "location"
+        case .ready: activity.kind.systemImage
         case .success, .alreadySigned: "checkmark.circle.fill"
         case .expired: "clock.badge.xmark"
         case .failure: "exclamationmark.triangle.fill"

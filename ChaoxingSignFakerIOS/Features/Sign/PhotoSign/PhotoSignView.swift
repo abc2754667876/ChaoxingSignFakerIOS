@@ -117,7 +117,7 @@ struct PhotoSignView: View {
                 .buttonStyle(.plain)
             }
         } else if canSubmitOrdinary {
-            actionButton(state.isFailure ? "重新签到" : "确认签到", systemImage: "hand.tap.fill", color: color) {
+            actionButton(state.isFailure ? "重新签到" : "确认签到", systemImage: activity.kind.systemImage, color: color) {
                 Task { await submitOrdinary() }
             }
         } else if case .failure = state {
@@ -156,7 +156,7 @@ struct PhotoSignView: View {
     private var icon: String {
         switch state {
         case .loading, .signing: "hourglass"
-        case .ready: isPhotoRequired ? "camera" : "hand.tap"
+        case .ready: activity.kind.systemImage
         case .success, .alreadySigned: "checkmark.circle.fill"
         case .expired: "clock.badge.xmark"
         case .failure: "exclamationmark.triangle.fill"

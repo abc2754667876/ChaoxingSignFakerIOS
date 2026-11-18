@@ -21,44 +21,62 @@ struct CodeSignView: View {
     @State private var qrCode: ParsedSignQRCode?
     @State private var isShowingScanner = false
     @State private var isShowingLocations = false
+    @State private var locationSelection = 0
+    @State private var detent: PresentationDetent = .fraction(0.45)
     @State private var locations: [SavedLocation] = []
     @State private var locationProvider = CurrentLocationProvider()
     private let store = SavedLocationStore()
 
     private var title: String { mode == .password ? "签到码签到" : "二维码签到" }
     private var isBusy: Bool { [.loading, .checking, .locating, .signing].contains(state) }
+    private var color: Color {
+        switch state {
+        case .success, .alreadySigned: .green
+        case .expired, .failure: .orange
+        default: .accentColor
+        }
+    }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 18) {
-                Image(systemName: icon)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 64, height: 64)
-                    .foregroundStyle(state == .success || state == .alreadySigned ? .green : .accentColor)
-                Text(title).font(.largeTitle)
-                Text(message)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
+        GeometryReader { geometry in
+            ScrollView {
+                VStack(spacing: 8) {
+                    Image(systemName: icon)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 64, height: 64)
+                        .foregroundStyle(color)
+                        .contentTransition(.symbolEffect(.replace))
 
-                if isPrepared && state == .ready && mode == .password {
-                    TextField("请输入签到码", text: $password)
-                        .keyboardType(.numberPad)
-                        .textContentType(.oneTimeCode)
+                    Text(title)
+                        .font(.largeTitle)
+                    Text(message)
+                        .font(.subheadline)
+                        .foregroundStyle(state.isFailure ? .orange : .secondary)
                         .multilineTextAlignment(.center)
-                        .font(.title2.monospacedDigit())
-                        .textFieldStyle(.roundedBorder)
-                        .onChange(of: password) { _, value in
-                            password = String(value.filter(\.isNumber).prefix(codeLength.flatMap { $0 > 0 ? $0 : nil } ?? 16))
-                        }
-                }
 
-                controls.padding(.top, 28)
+                    if isPrepared && (state == .ready || state.isFailure) && mode == .password {
+                        TextField("请输入签到码", text: $password)
+                            .keyboardType(.numberPad)
+                            .textContentType(.oneTimeCode)
+                            .multilineTextAlignment(.center)
+                            .font(.title2.monospacedDigit())
+                            .textFieldStyle(.roundedBorder)
+                            .frame(maxWidth: 320)
+                            .padding(.top, 24)
+                            .onChange(of: password) { _, value in
+                                password = String(value.filter(\.isNumber).prefix(codeLength.flatMap { $0 > 0 ? $0 : nil } ?? 16))
+                            }
+                    }
+
+                    controls
+                        .padding(.top, isPrepared && mode == .password ? 20 : 72)
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 24)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: geometry.size.height)
             }
-            .padding(24)
-            .frame(maxWidth: 420)
-            .frame(maxWidth: .infinity)
         }
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
@@ -76,59 +94,134 @@ struct CodeSignView: View {
             }
         }
         .sheet(isPresented: $isShowingLocations) {
-            NavigationStack {
-                List {
-                    Button("使用当前位置") {
-                        isShowingLocations = false
-                        Task { await signUsingCurrentLocation() }
-                    }
-                    if locations.isEmpty {
-                        Text("暂无收藏位置，可在“位置”页面添加。")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(locations) { location in
-                            Button {
-                                isShowingLocations = false
-                                Task { await sign(location.signLocation) }
-                            } label: {
-                                VStack(alignment: .leading) {
-                                    Text(location.name)
-                                    Text(location.address).font(.caption).foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                    }
-                }
-                .navigationTitle("选择签到位置")
-                .toolbar { Button("取消") { isShowingLocations = false } }
-            }
-            .presentationDetents([.medium, .large])
+            locationsSheet
+                .presentationDetents([.fraction(0.45), .large], selection: $detent)
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(36)
+                .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.45)))
         }
+        .animation(.default, value: state)
     }
 
-    @ViewBuilder private var controls: some View {
+    @ViewBuilder
+    private var controls: some View {
         if isBusy {
-            ProgressView().controlSize(.large)
+            ProgressView()
+                .controlSize(.large)
+                .frame(maxWidth: .infinity, minHeight: 48)
         } else if !isPrepared {
-            Button("重新检查") { Task { await prepare() } }
-                .buttonStyle(.borderedProminent)
+            if state.isFailure {
+                actionButton("重新检查", systemImage: "arrow.clockwise", color: .orange) {
+                    Task { await prepare() }
+                }
+            } else {
+                actionLabel(buttonTitle, systemImage: icon, color: color)
+            }
         } else if state == .ready || state.isFailure {
             VStack(spacing: 12) {
                 if mode == .password {
-                    Button("验证并签到") { Task { await handlePassword() } }
+                    actionButton("验证并签到", systemImage: activity.kind.systemImage, color: color) {
+                        Task { await handlePassword() }
+                    }
                         .disabled(password.isEmpty || (codeLength.flatMap { $0 > 0 ? $0 : nil }.map { password.count != $0 } ?? false))
-                        .buttonStyle(.borderedProminent)
                 } else {
-                    Button(qrCode == nil ? "扫描二维码" : "重新扫描二维码") {
+                    actionButton(qrCode == nil ? "扫描二维码" : "重新扫描二维码", systemImage: activity.kind.systemImage, color: color) {
                         isShowingScanner = true
                     }
-                    .buttonStyle(.borderedProminent)
                     if qrCode != nil {
-                        Button("继续签到") { Task { await proceed() } }
-                            .buttonStyle(.bordered)
+                        actionButton("继续签到", systemImage: "arrow.clockwise", color: .secondary) {
+                            Task { await proceed() }
+                        }
                     }
                 }
             }
+        } else {
+            actionLabel(buttonTitle, systemImage: icon, color: color)
+        }
+    }
+
+    private var locationsSheet: some View {
+        NavigationStack {
+            VStack(spacing: 12) {
+                Picker("位置来源", selection: $locationSelection) {
+                    Text("当前位置").tag(0)
+                    Text("已收藏位置").tag(1)
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal)
+
+                if locationSelection == 0 {
+                    VStack(spacing: 16) {
+                        Spacer()
+                        Image(systemName: "location.north")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 64, height: 64)
+                            .foregroundStyle(Color.accentColor)
+                        Text("将获取设备当前位置与地址，并随签到凭证一起提交")
+                            .font(.headline)
+                            .multilineTextAlignment(.center)
+                        actionButton("使用当前位置签到", systemImage: "location.fill", color: .accentColor) {
+                            isShowingLocations = false
+                            Task { await signUsingCurrentLocation() }
+                        }
+                        .padding(.top, 16)
+                        Spacer()
+                    }
+                    .padding(.horizontal)
+                } else if locations.isEmpty {
+                    ContentUnavailableView(
+                        "暂无收藏位置",
+                        systemImage: "mappin.slash",
+                        description: Text("请先在“位置”页面轻点地图收藏常用签到位置。")
+                    )
+                } else {
+                    List(locations) { location in
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(location.name).font(.headline)
+                                Text(location.address)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            Button("确认签到") {
+                                isShowingLocations = false
+                                Task { await sign(location.signLocation) }
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    .listStyle(.plain)
+                }
+            }
+            .navigationTitle("选择签到位置")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+
+    private func actionButton(_ text: String, systemImage: String, color: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            actionLabel(text, systemImage: systemImage, color: color)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func actionLabel(_ text: String, systemImage: String, color: Color) -> some View {
+        Label(text, systemImage: systemImage)
+            .fontWeight(.semibold)
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .background(color, in: Capsule())
+    }
+
+    private var buttonTitle: String {
+        switch state {
+        case .success, .alreadySigned: "已签到"
+        case .expired: "签到已截止"
+        default: ""
         }
     }
 
@@ -137,7 +230,8 @@ struct CodeSignView: View {
         case .success, .alreadySigned: "checkmark.circle.fill"
         case .expired: "clock.badge.xmark"
         case .failure: "exclamationmark.triangle.fill"
-        default: mode == .password ? "number.square" : "qrcode.viewfinder"
+        case .loading, .checking, .locating, .signing: "hourglass"
+        case .ready: activity.kind.systemImage
         }
     }
 
