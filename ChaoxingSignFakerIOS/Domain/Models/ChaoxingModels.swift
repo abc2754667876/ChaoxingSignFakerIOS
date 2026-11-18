@@ -82,7 +82,7 @@ struct ChaoxingActivity: Identifiable, Hashable, Sendable {
     var isActive: Bool { status == 1 }
     var isOrdinaryCandidate: Bool { kind == .ordinaryOrPhoto }
     var isSupported: Bool {
-        kind == .ordinaryOrPhoto || kind == .gesture || kind == .location
+        kind == .ordinaryOrPhoto || kind == .gesture || kind == .location || kind == .qrCode || kind == .password
     }
 }
 
@@ -117,6 +117,48 @@ enum GestureSignPreparation: Equatable, Sendable {
     case ready(isLocationRequired: Bool)
     case alreadySigned(isLocationRequired: Bool)
     case expired(isLocationRequired: Bool)
+}
+
+enum CodeSignPreparation: Equatable, Sendable {
+    case ready(isLocationRequired: Bool, codeLength: Int?, isRefreshingQR: Bool)
+    case alreadySigned
+    case expired
+}
+
+struct ParsedSignQRCode: Equatable, Sendable {
+    let activeID: Int64?
+    let code: String?
+    let enc: String
+
+    init(_ rawValue: String) throws {
+        let values: [String: String]
+        if rawValue.hasPrefix("SIGNIN:") {
+            let content = String(rawValue.dropFirst("SIGNIN:".count)).components(separatedBy: "-")[0]
+            values = Self.parameters(content)
+        } else if let components = URLComponents(string: rawValue),
+                  let scheme = components.scheme?.lowercased(),
+                  scheme == "https" || scheme == "http" {
+            values = Dictionary(components.queryItems?.compactMap { item in
+                item.value.map { (item.name, $0) }
+            } ?? [], uniquingKeysWith: { first, _ in first })
+        } else {
+            throw ChaoxingError.invalidInput("二维码格式无效")
+        }
+        guard let enc = values["enc"], !enc.isEmpty else {
+            throw ChaoxingError.invalidInput("二维码缺少签到凭证")
+        }
+        self.enc = enc
+        activeID = (values["id"] ?? values["aid"]).flatMap(Int64.init)
+        code = values["c"].flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    private static func parameters(_ text: String) -> [String: String] {
+        Dictionary(text.split(separator: "&").compactMap { part in
+            let pair = part.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+            guard pair.count == 2 else { return nil }
+            return (String(pair[0]), String(pair[1]).removingPercentEncoding ?? String(pair[1]))
+        }, uniquingKeysWith: { first, _ in first })
+    }
 }
 
 enum OrdinarySignPreparation: Equatable, Sendable {

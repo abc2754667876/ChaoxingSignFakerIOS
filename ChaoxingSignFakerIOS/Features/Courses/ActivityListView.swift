@@ -63,6 +63,10 @@ struct ActivityListView: View {
             GestureSignView(model: model, activity: activity)
         case .location:
             LocationSignView(model: model, activity: activity)
+        case .password:
+            CodeSignView(model: model, activity: activity, mode: .password)
+        case .qrCode:
+            CodeSignView(model: model, activity: activity, mode: .qrCode)
         default:
             EmptyView()
         }

@@ -13,6 +13,7 @@ final class ChaoxingAPI {
         static let analysis2 = URL(string: "https://mobilelearn.chaoxing.com/pptSign/analysis2?DB_STRATEGY=RANDOM")!
         static let ordinarySign = URL(string: "https://mobilelearn.chaoxing.com/pptSign/stuSignajax")!
         static let checkGesture = URL(string: "https://mobilelearn.chaoxing.com/widget/sign/pcStuSignController/checkSignCode")!
+        static let signDetail = URL(string: "https://mobilelearn.chaoxing.com/newsign/signDetail")!
         static let cloudToken = URL(string: "https://pan-yz.chaoxing.com/api/token/uservalid")!
         static let cloudUpload = URL(string: "https://pan-yz.chaoxing.com/upload")!
     }
@@ -250,6 +251,103 @@ final class ChaoxingAPI {
                     value: try locationJSON(location, includesMockData: true)
                 )
             )
+        }
+        let response = try await http.send(Endpoint.ordinarySign, query: query)
+        return try parseSignResponse(response.text)
+    }
+
+    func prepareCodeSign(_ activity: ChaoxingActivity) async throws -> CodeSignPreparation {
+        let current = try requireSession()
+        guard activity.kind == .password || activity.kind == .qrCode else {
+            throw ChaoxingError.unsupportedSign("该活动不是签到码或二维码签到")
+        }
+        let response = try await http.send(
+            preSignURL(activity: activity, session: current),
+            method: "POST",
+            form: [("ext", activity.ext)]
+        )
+        if response.text.contains("校验失败，未查询到活动数据") {
+            throw ChaoxingError.notInClass
+        }
+        try await postAnalysis(activeID: activity.id)
+        let info = try await signInfo(activeID: activity.id)
+        if isExpired(response.text) { return .expired }
+        if isAlreadySigned(response.text) { return .alreadySigned }
+        guard info.integer("openCheckFaceFlag") != 1 else {
+            throw ChaoxingError.unsupportedSign("该活动要求人脸识别，当前版本暂未接入")
+        }
+        guard info.integer("ifNeedVCode") != 1 else {
+            throw ChaoxingError.captchaRequired
+        }
+        return .ready(
+            isLocationRequired: info.integer("ifopenAddress") == 1,
+            codeLength: activity.kind == .password ? info.integer("numberCount") : nil,
+            isRefreshingQR: info.integer("ifrefreshewm") == 1
+        )
+    }
+
+    func checkPassword(_ code: String, for activity: ChaoxingActivity) async throws -> Bool {
+        guard activity.kind == .password, !code.isEmpty, code.allSatisfy(\.isNumber) else {
+            throw ChaoxingError.invalidInput("签到码无效")
+        }
+        let response = try await http.send(Endpoint.checkGesture, query: [
+            URLQueryItem(name: "activeId", value: String(activity.id)),
+            URLQueryItem(name: "signCode", value: code)
+        ])
+        return try JSONReader.object(from: response.data).integer("result") == 1
+    }
+
+    func checkQRCode(_ code: ParsedSignQRCode, for activity: ChaoxingActivity) async throws -> Bool {
+        guard activity.kind == .qrCode, code.activeID == nil || code.activeID == activity.id else {
+            throw ChaoxingError.invalidInput("二维码与当前活动不匹配")
+        }
+        guard let signCode = code.code else { return true }
+        let response = try await http.send(Endpoint.signDetail, query: [
+            URLQueryItem(name: "activePrimaryId", value: String(activity.id)),
+            URLQueryItem(name: "type", value: "1"),
+            URLQueryItem(name: "msg", value: signCode)
+        ])
+        let detail = try JSONReader.object(from: response.data)
+        return detail.integer("isOver") != 1 && detail.string("signCode") == signCode
+    }
+
+    func signCode(
+        _ activity: ChaoxingActivity,
+        code: String?,
+        qrCode: ParsedSignQRCode?,
+        location: ChaoxingSignLocation?
+    ) async throws -> OrdinarySignResult {
+        let current = try requireSession()
+        guard activity.kind == .password || activity.kind == .qrCode else {
+            throw ChaoxingError.unsupportedSign("签到类型无效")
+        }
+        var query = [
+            URLQueryItem(name: "activeId", value: String(activity.id)),
+            URLQueryItem(name: "courseId", value: String(activity.course.courseID)),
+            URLQueryItem(name: "uid", value: String(current.user.puid)),
+            URLQueryItem(name: "clientip", value: ""),
+            URLQueryItem(name: "latitude", value: activity.kind == .qrCode ? "-1" : location.map { coordinateString($0.bd09Latitude) } ?? "-1"),
+            URLQueryItem(name: "longitude", value: activity.kind == .qrCode ? "-1" : location.map { coordinateString($0.bd09Longitude) } ?? "-1"),
+            URLQueryItem(name: "appType", value: "15"),
+            URLQueryItem(name: "fid", value: String(current.configuredFID)),
+            URLQueryItem(name: "name", value: current.user.name),
+            URLQueryItem(name: "deviceCode", value: current.deviceCode)
+        ]
+        if activity.kind == .password {
+            guard let code, !code.isEmpty else { throw ChaoxingError.invalidInput("请输入签到码") }
+            query.append(URLQueryItem(name: "signCode", value: code))
+        } else {
+            guard let qrCode else { throw ChaoxingError.invalidInput("请扫描签到二维码") }
+            guard try await checkQRCode(qrCode, for: activity) else {
+                throw ChaoxingError.invalidInput("二维码已过期，请重新扫描")
+            }
+            query.append(URLQueryItem(name: "enc", value: qrCode.enc))
+            query.append(URLQueryItem(name: "vpProbability", value: "-1"))
+            query.append(URLQueryItem(name: "vpStrategy", value: ""))
+        }
+        if let location {
+            query.append(URLQueryItem(name: "location", value: try locationJSON(location, includesMockData: false)))
+            query.append(URLQueryItem(name: "locationResult", value: try locationJSON(location, includesMockData: true)))
         }
         let response = try await http.send(Endpoint.ordinarySign, query: query)
         return try parseSignResponse(response.text)

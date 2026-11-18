@@ -142,6 +142,22 @@ final class AppModel {
         try await api.signLocation(activity, location: location)
     }
 
+    func prepareCodeSign(_ activity: ChaoxingActivity) async throws -> CodeSignPreparation {
+        try await api.prepareCodeSign(activity)
+    }
+
+    func checkPassword(_ code: String, for activity: ChaoxingActivity) async throws -> Bool {
+        try await api.checkPassword(code, for: activity)
+    }
+
+    func checkQRCode(_ code: ParsedSignQRCode, for activity: ChaoxingActivity) async throws -> Bool {
+        try await api.checkQRCode(code, for: activity)
+    }
+
+    func signCode(_ activity: ChaoxingActivity, code: String?, qrCode: ParsedSignQRCode?, location: ChaoxingSignLocation?) async throws -> OrdinarySignResult {
+        try await api.signCode(activity, code: code, qrCode: qrCode, location: location)
+    }
+
     func logout() {
         api.logout()
         sessionStore.clear()
