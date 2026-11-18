@@ -197,7 +197,7 @@ struct CourseItem: View {
     var body: some View {
         HStack {
             NavigationLink(value: course) {
-                HStack {
+                HStack(spacing: 12) {
                     CourseArtwork(url: course.imageURL)
                         .frame(width: 72, height: 48)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -239,7 +239,7 @@ struct OnGoingCheckIn: View {
     var time: String
 
     var body: some View {
-        HStack {
+        HStack(spacing: 12) {
             ZStack {
                 RoundedRectangle(cornerRadius: 16)
                     .fill(.blue.gradient)

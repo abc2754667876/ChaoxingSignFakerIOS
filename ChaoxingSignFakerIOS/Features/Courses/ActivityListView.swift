@@ -73,9 +73,17 @@ private struct ActivityRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: activity.kind.systemImage)
-                .frame(width: 28)
-                .foregroundStyle(activity.isActive ? Color.accentColor : .secondary)
+            ZStack {
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(activity.isActive ? Color.blue.gradient : Color.secondary.gradient)
+                    .frame(width: 56, height: 56)
+                Image(systemName: activity.kind.systemImage)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 24, height: 24)
+                    .foregroundStyle(.white)
+            }
+            
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Text(activity.title).font(.headline)
@@ -87,12 +95,9 @@ private struct ActivityRow: View {
                             .background(.secondary.opacity(0.12), in: Capsule())
                     }
                 }
-                Text(activity.kind.title)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
                 Text(activity.startTime.formatted(date: .abbreviated, time: .shortened))
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
             Spacer()
             if !activity.isActive {

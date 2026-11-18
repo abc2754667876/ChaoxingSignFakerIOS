@@ -54,10 +54,10 @@ enum ChaoxingSignKind: String, Hashable, Sendable {
     var systemImage: String {
         switch self {
         case .ordinaryOrPhoto: "hand.tap"
-        case .qrCode: "qrcode.viewfinder"
-        case .gesture: "circle.grid.3x3"
+        case .gesture: "hand.draw"
         case .location: "location"
-        case .password: "number.square"
+        case .qrCode: "qrcode"
+        case .password: "ellipsis.rectangle"
         case .unknown: "questionmark.circle"
         }
     }
