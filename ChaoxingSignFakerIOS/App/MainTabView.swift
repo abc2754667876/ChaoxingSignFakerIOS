@@ -10,11 +10,7 @@ struct MainTabView: View {
                     Label("首页", systemImage: "house")
                 }
 
-            PlaceholderTabView(
-                title: "多账号",
-                systemImage: "person.2",
-                description: "可在这里管理用于签到的其他账号。"
-            )
+            OtherUsersView(currentUser: model.user)
             .tabItem {
                 Label("多账号", systemImage: "person.2")
             }

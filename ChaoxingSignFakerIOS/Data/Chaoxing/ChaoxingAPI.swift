@@ -86,6 +86,10 @@ final class ChaoxingAPI {
         http.clearChaoxingCookies()
     }
 
+    func uploadFacePhoto(_ jpegData: Data) async throws -> String {
+        try await uploadPhoto(jpegData, session: requireSession())
+    }
+
     func courses() async throws -> [ChaoxingCourse] {
         _ = try requireSession()
         let response = try await http.send(Endpoint.courses)
