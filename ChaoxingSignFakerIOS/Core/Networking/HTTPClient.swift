@@ -15,15 +15,19 @@ final class HTTPClient {
     private let session: URLSession
     private let cookieStorage: HTTPCookieStorage
 
-    init(cookieStorage: HTTPCookieStorage = .shared) {
+    init(
+        cookieStorage: HTTPCookieStorage = .shared,
+        configuration: URLSessionConfiguration = .ephemeral
+    ) {
         self.cookieStorage = cookieStorage
-        let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = 20
         configuration.timeoutIntervalForResource = 40
         configuration.httpCookieAcceptPolicy = .always
         configuration.httpCookieStorage = cookieStorage
         configuration.httpShouldSetCookies = true
-        configuration.httpAdditionalHeaders = ["User-Agent": Self.defaultUserAgent]
+        var headers = configuration.httpAdditionalHeaders ?? [:]
+        headers["User-Agent"] = Self.defaultUserAgent
+        configuration.httpAdditionalHeaders = headers
         session = URLSession(configuration: configuration)
     }
 

@@ -306,6 +306,8 @@ struct CodeSignView: View {
             }
             qrCode = parsed
             await proceed()
+        } catch ChaoxingError.signExpired {
+            state = .expired
         } catch { state = .failure(error.localizedDescription) }
     }
 

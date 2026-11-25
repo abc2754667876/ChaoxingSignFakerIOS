@@ -312,13 +312,21 @@ final class ChaoxingAPI {
             throw ChaoxingError.invalidInput("二维码与当前活动不匹配")
         }
         guard let signCode = code.code else { return true }
+        let info = try await signInfo(activeID: activity.id)
+        guard let refreshMode = info.integer("ifrefreshewm"), [0, 1].contains(refreshMode) else {
+            throw ChaoxingError.invalidResponse("无法获取二维码刷新设置，请重试")
+        }
         let response = try await http.send(Endpoint.signDetail, query: [
             URLQueryItem(name: "activePrimaryId", value: String(activity.id)),
             URLQueryItem(name: "type", value: "1"),
             URLQueryItem(name: "msg", value: signCode)
         ])
         let detail = try JSONReader.object(from: response.data)
-        return detail.integer("isOver") != 1 && detail.string("signCode") == signCode
+        if detail.integer("isOver") == 1 { throw ChaoxingError.signExpired }
+        // The sign endpoint validates enc and expiry when signDetail omits these hints.
+        guard refreshMode == 1,
+              let currentCode = detail.string("signCode"), !currentCode.isEmpty else { return true }
+        return currentCode == signCode
     }
 
     func signCode(
