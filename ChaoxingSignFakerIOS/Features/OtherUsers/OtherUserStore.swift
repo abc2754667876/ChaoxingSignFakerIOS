@@ -42,6 +42,17 @@ struct OtherUserCookie: Codable {
     }
 }
 
+extension HTTPCookie {
+    func replacingValue(_ newValue: String) -> HTTPCookie? {
+        var properties: [HTTPCookiePropertyKey: Any] = [
+            .name: name, .value: newValue, .domain: domain, .path: path, .version: "0"
+        ]
+        if let expiresDate { properties[.expires] = expiresDate }
+        if isSecure { properties[.secure] = "TRUE" }
+        return HTTPCookie(properties: properties)
+    }
+}
+
 struct OtherUserStore {
     private let service = "com.chengzhizhang.ChaoxingSignFakerIOS.other-users"
 

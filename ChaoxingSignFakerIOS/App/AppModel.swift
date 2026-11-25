@@ -18,6 +18,23 @@ final class AppModel {
     var loginError: String?
     var courseError: String?
 
+    var configuredFID: Int? { api.session?.configuredFID }
+
+    func setConfiguredFID(_ fid: Int) {
+        guard let current = api.session,
+              current.user.schools.contains(where: { $0.id == fid }) else { return }
+        let updated = ChaoxingSession(user: current.user, configuredFID: fid, deviceCode: current.deviceCode)
+        let cookies = api.authenticationCookies.map { cookie in
+            cookie.name == "fid" ? (cookie.replacingValue(String(fid)) ?? cookie) : cookie
+        }
+        api.restore(updated, cookies: cookies)
+        sessionStore.save(session: updated, cookies: cookies)
+    }
+
+    func uploadFacePhoto(_ jpegData: Data) async throws -> String {
+        try await api.uploadFacePhoto(jpegData)
+    }
+
     var favoriteCourses: [ChaoxingCourse] {
         courses.filter { favoriteCourseClassIDs.contains($0.classID) }
     }

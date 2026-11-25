@@ -194,6 +194,11 @@ struct OtherUsersView: View {
         var updated = accounts
         let old = updated[index].session
         updated[index].session = ChaoxingSession(user: old.user, configuredFID: fid, deviceCode: old.deviceCode)
+        updated[index].cookies = updated[index].cookies.map { stored in
+            guard stored.name == "fid", let cookie = stored.cookie,
+                  let changed = cookie.replacingValue(String(fid)) else { return stored }
+            return OtherUserCookie(changed)
+        }
         do { try store.save(updated); accounts = updated }
         catch { errorMessage = error.localizedDescription }
     }
@@ -300,7 +305,7 @@ struct OtherUsersView: View {
     }
 }
 
-private struct OtherUserCameraPicker: UIViewControllerRepresentable {
+struct OtherUserCameraPicker: UIViewControllerRepresentable {
     let onImage: (UIImage) -> Void
     let onCancel: () -> Void
 

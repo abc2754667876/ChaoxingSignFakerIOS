@@ -20,8 +20,7 @@ struct MainTabView: View {
                     Label("位置", systemImage: "location")
                 }
 
-            //ProfileView(model: model)
-            ProfileView()
+            ProfileView(model: model)
                 .tabItem {
                     Label("我的", systemImage: "person")
                 }
