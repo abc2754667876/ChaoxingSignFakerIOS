@@ -35,7 +35,7 @@ struct OrdinarySignView: View {
             Text(message)
                 .font(.subheadline).foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            if !results.isEmpty {
+            if !results.isEmpty { // TODO: 这里状态文本去掉
                 VStack(alignment: .leading, spacing: 6) {
                 ForEach(results.indices, id: \.self) { index in
                     Text(results[index]).font(.subheadline)
@@ -104,7 +104,19 @@ struct OrdinarySignView: View {
                 }
                 .frame(width: 48, height: 48).clipShape(Circle())
                 VStack(alignment: .leading) {
-                    Text(user.name).font(.headline)
+                    HStack {
+                        Text(user.name).font(.headline)
+                        HStack(spacing: 2) { // TODO: 这里显示每个账号的签到状态
+                            Image(systemName: "checkmark.circle.fill")
+                            Text("签到成功")
+                        }
+                        .padding(4)
+                        .foregroundStyle(.green)
+                        .font(.caption)
+                        .background(.green.opacity(0.1))
+                        .cornerRadius(4)
+                    }
+
                     Text(masked(user.phoneNumber)).font(.subheadline).foregroundStyle(.secondary)
                 }
                 Spacer()
