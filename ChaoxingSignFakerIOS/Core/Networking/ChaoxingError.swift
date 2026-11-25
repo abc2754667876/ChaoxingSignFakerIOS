@@ -12,6 +12,7 @@ enum ChaoxingError: LocalizedError, Equatable {
     case captchaRequired
     case outsideLocationRange(Double?)
     case signFailed(String)
+    case duplicateDeviceSign
 
     var errorDescription: String? {
         switch self {
@@ -23,6 +24,8 @@ enum ChaoxingError: LocalizedError, Equatable {
             message
         case .sessionExpired:
             "登录状态已失效，请重新登录"
+        case .duplicateDeviceSign:
+            "同一设备不允许重复签到"
         case .alreadySigned:
             "你已经签到过了"
         case .signExpired:

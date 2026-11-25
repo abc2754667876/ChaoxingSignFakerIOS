@@ -471,7 +471,7 @@ final class ChaoxingAPI {
             let distance = value.split(separator: "_").dropFirst().first.flatMap { Double($0) }
             throw ChaoxingError.outsideLocationRange(distance)
         case let value where value.contains("同一设备不允许重复签到"):
-            throw ChaoxingError.signFailed("同一设备不允许重复签到")
+            throw ChaoxingError.duplicateDeviceSign
         case let value:
             throw ChaoxingError.signFailed(value.isEmpty ? "签到失败" : value)
         }

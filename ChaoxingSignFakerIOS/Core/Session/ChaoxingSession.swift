@@ -14,12 +14,16 @@ enum DeviceCodeStore {
         if let value = UserDefaults.standard.string(forKey: key), !value.isEmpty {
             return value
         }
+        let value = randomized()
+        UserDefaults.standard.set(value, forKey: key)
+        return value
+    }
+
+    static func randomized() -> String {
         let source = UUID().uuidString.replacingOccurrences(of: "-", with: "")
             + UUID().uuidString.replacingOccurrences(of: "-", with: "")
         let digest = Array(CryptoKit.SHA256.hash(data: Data(source.utf8)))
-        let value = Data(digest + digest).base64EncodedString()
-        UserDefaults.standard.set(value, forKey: key)
-        return value
+        return Data(digest + digest).base64EncodedString()
     }
 }
 

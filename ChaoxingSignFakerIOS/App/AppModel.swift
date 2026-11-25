@@ -121,16 +121,41 @@ final class AppModel {
     }
 
     func signOrdinary(_ activity: ChaoxingActivity) async throws -> OrdinarySignResult {
-        try await api.signOrdinary(activity)
+        do {
+            return try await api.signOrdinary(activity)
+        } catch ChaoxingError.duplicateDeviceSign {
+            guard let current = api.session else { throw ChaoxingError.sessionExpired }
+            let updated = ChaoxingSession(user: current.user, configuredFID: current.configuredFID, deviceCode: DeviceCodeStore.randomized())
+            let cookies = api.authenticationCookies
+            api.restore(updated, cookies: cookies)
+            sessionStore.save(session: updated, cookies: cookies)
+            return try await api.signOrdinary(activity)
+        }
     }
 
     func signOrdinary(_ activity: ChaoxingActivity, for account: OtherUserAccount) async throws -> OrdinarySignPreparation {
+        let otherStore = OtherUserStore()
+        let storedAccount = otherStore.load().first { $0.session.user.uid == account.session.user.uid } ?? account
         let cookieStorage = HTTPCookieStorage.sharedCookieStorage(forGroupContainerIdentifier: "ordinary-sign-\(UUID().uuidString)")
         let otherAPI = ChaoxingAPI(http: HTTPClient(cookieStorage: cookieStorage))
-        otherAPI.restore(account.session, cookies: account.cookies.compactMap(\.cookie))
+        let cookies = storedAccount.cookies.compactMap(\.cookie)
+        otherAPI.restore(storedAccount.session, cookies: cookies)
         let preparation = try await otherAPI.prepareOrdinarySign(activity)
         if case .ready = preparation {
-            _ = try await otherAPI.signOrdinary(activity)
+            do {
+                _ = try await otherAPI.signOrdinary(activity)
+            } catch ChaoxingError.duplicateDeviceSign {
+                var accounts = otherStore.load()
+                guard let index = accounts.firstIndex(where: { $0.session.user.uid == storedAccount.session.user.uid }) else {
+                    throw ChaoxingError.invalidInput("账号已从多账号列表移除")
+                }
+                let current = accounts[index].session
+                let updated = ChaoxingSession(user: current.user, configuredFID: current.configuredFID, deviceCode: DeviceCodeStore.randomized())
+                accounts[index].session = updated
+                try otherStore.save(accounts)
+                otherAPI.restore(updated, cookies: cookies)
+                _ = try await otherAPI.signOrdinary(activity)
+            }
         }
         return preparation
     }
