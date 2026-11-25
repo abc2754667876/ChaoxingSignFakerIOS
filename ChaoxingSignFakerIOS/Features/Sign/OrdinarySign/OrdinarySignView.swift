@@ -14,6 +14,8 @@ struct OrdinarySignView: View {
     let model: AppModel
     let activity: ChaoxingActivity
     @State private var state: State = .loading
+    
+    @State private var showUserChoose = false
 
     var body: some View {
         VStack(spacing: 8) {
@@ -31,6 +33,7 @@ struct OrdinarySignView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
 
+            // TODO: 若选择了多账号，为选中的账号进行签到（如果当前主账号没被选中，则主账号不用签到）
             Button(action: performButtonAction) {
                 ZStack {
                     Capsule()
@@ -53,6 +56,70 @@ struct OrdinarySignView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await prepare() }
         .animation(.default, value: state)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: {
+                    showUserChoose = true
+                }) {
+                    Image("custom.list.bullet.badge.person.crop")
+                }
+            }
+        }
+        .sheet(isPresented: $showUserChoose) {
+            userChoose
+        }
+    }
+    
+    private var userChoose: some View {
+        NavigationStack {
+            List {
+                Section(header: Text("用户列表")) {
+                    HStack { // TODO: 每个数据项整一行都可以点击，点击为选择/取消选择操作
+                        Image(systemName: "person.circle.fill") // TODO: 这里显示头像
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 48, height: 48)
+                            .foregroundStyle(.blue.gradient)
+                        
+                        VStack(alignment: .leading) {
+                            Text("张诚志") // TODO: 这里显示姓名
+                                .font(.headline)
+                            Text("155****2754") // TODO: 这里显示脱敏后手机号
+                                .foregroundStyle(.secondary)
+                                .font(.subheadline)
+                        }
+                        
+                        Spacer()
+                        
+                        Image(systemName: "checkmark.circle.fill") // TODO: 选中后改为checkmark.circle.fill，未选中为circle
+                    } // TODO: List里第一行必须是当前账号，且默认选中，多账号页面中可能存在与当前账号重复的情况，本List中注意去重
+                    
+                    // TODO: 接下来加载多账号里存储的其他账号，注意去重
+                    HStack {
+                        Image(systemName: "person.circle.fill")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 48, height: 48)
+                            .foregroundStyle(.blue.gradient)
+                        
+                        VStack(alignment: .leading) {
+                            Text("董昊宇")
+                                .font(.headline)
+                            Text("136****9955")
+                                .foregroundStyle(.secondary)
+                                .font(.subheadline)
+                        }
+                        
+                        Spacer()
+                        
+                        Image(systemName: "circle")
+                    }
+                }
+            }
+            .navigationTitle("选择需要签到的用户")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("关闭") { showUserChoose = false } } }
+        }
     }
 
     private var icon: String {
