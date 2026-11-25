@@ -25,6 +25,39 @@ struct PhotoSignView: View {
     @State private var isShowingCameraUnavailable = false
 
     var body: some View {
+        Group {
+            if hasPrepared && !isPhotoRequired {
+                OrdinarySignView(model: model, activity: activity)
+            } else {
+                photoContent
+            }
+        }
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
+        .task { await prepare() }
+        .onChange(of: photoPickerItem) { _, newItem in
+            guard let newItem else { return }
+            Task { await loadAndSubmit(newItem) }
+        }
+        .fullScreenCover(isPresented: $isCameraPresented) {
+            CameraPicker { image in
+                isCameraPresented = false
+                selectedImage = image
+                Task { await submit(image) }
+            } onCancel: {
+                isCameraPresented = false
+            }
+            .ignoresSafeArea()
+        }
+        .alert("无法使用相机", isPresented: $isShowingCameraUnavailable) {
+            Button("好") {}
+        } message: {
+            Text("当前设备不支持相机拍摄，请改从相册选择图片。")
+        }
+        .animation(.default, value: state)
+    }
+
+    private var photoContent: some View {
         GeometryReader { geometry in
             ScrollView {
                 VStack(spacing: 12) {
@@ -64,29 +97,6 @@ struct PhotoSignView: View {
                 .frame(minHeight: geometry.size.height)
             }
         }
-        .navigationTitle(title)
-        .navigationBarTitleDisplayMode(.inline)
-        .task { await prepare() }
-        .onChange(of: photoPickerItem) { _, newItem in
-            guard let newItem else { return }
-            Task { await loadAndSubmit(newItem) }
-        }
-        .fullScreenCover(isPresented: $isCameraPresented) {
-            CameraPicker { image in
-                isCameraPresented = false
-                selectedImage = image
-                Task { await submit(image) }
-            } onCancel: {
-                isCameraPresented = false
-            }
-            .ignoresSafeArea()
-        }
-        .alert("无法使用相机", isPresented: $isShowingCameraUnavailable) {
-            Button("好") {}
-        } message: {
-            Text("当前设备不支持相机拍摄，请改从相册选择图片。")
-        }
-        .animation(.default, value: state)
     }
 
     @ViewBuilder

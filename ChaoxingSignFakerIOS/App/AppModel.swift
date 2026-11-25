@@ -124,6 +124,17 @@ final class AppModel {
         try await api.signOrdinary(activity)
     }
 
+    func signOrdinary(_ activity: ChaoxingActivity, for account: OtherUserAccount) async throws -> OrdinarySignPreparation {
+        let cookieStorage = HTTPCookieStorage.sharedCookieStorage(forGroupContainerIdentifier: "ordinary-sign-\(UUID().uuidString)")
+        let otherAPI = ChaoxingAPI(http: HTTPClient(cookieStorage: cookieStorage))
+        otherAPI.restore(account.session, cookies: account.cookies.compactMap(\.cookie))
+        let preparation = try await otherAPI.prepareOrdinarySign(activity)
+        if case .ready = preparation {
+            _ = try await otherAPI.signOrdinary(activity)
+        }
+        return preparation
+    }
+
     func prepareOrdinaryOrPhotoSign(_ activity: ChaoxingActivity) async throws -> OrdinaryOrPhotoSignPreparation {
         try await api.prepareOrdinaryOrPhotoSign(activity)
     }

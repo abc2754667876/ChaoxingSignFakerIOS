@@ -2,50 +2,53 @@ import SwiftUI
 
 struct OrdinarySignView: View {
     private enum State: Equatable {
-        case loading
-        case ready
-        case signing
-        case success
-        case alreadySigned
-        case expired
+        case loading, ready, signing, success, alreadySigned, expired
         case failure(String)
     }
 
     let model: AppModel
     let activity: ChaoxingActivity
+    private let store = OtherUserStore()
+
     @State private var state: State = .loading
-    
+    @State private var hasPrepared = false
     @State private var showUserChoose = false
+    @State private var accounts: [OtherUserAccount] = []
+    @State private var selectedUserIDs: Set<Int> = []
+    @State private var completedUserIDs: Set<Int> = []
+    @State private var results: [String] = []
+
+    private var currentUser: ChaoxingUser? { model.user }
+    private var otherAccounts: [OtherUserAccount] {
+        var seen = Set<Int>()
+        if let currentUser { seen.insert(currentUser.uid) }
+        return accounts.filter { seen.insert($0.session.user.uid).inserted }
+    }
 
     var body: some View {
         VStack(spacing: 8) {
             Image(systemName: icon)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 64, height: 64)
+                .resizable().scaledToFit().frame(width: 64, height: 64)
                 .foregroundStyle(color)
                 .contentTransition(.symbolEffect(.replace))
-
-            Text("普通签到")
-                .font(.largeTitle)
+            Text("普通签到").font(.largeTitle)
             Text(message)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(.subheadline).foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-
-            // TODO: 若选择了多账号，为选中的账号进行签到（如果当前主账号没被选中，则主账号不用签到）
+            if !results.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                ForEach(results.indices, id: \.self) { index in
+                    Text(results[index]).font(.subheadline)
+                }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, 20)
+            }
             Button(action: performButtonAction) {
                 ZStack {
-                    Capsule()
-                        .fill(color)
-                        .frame(height: 48)
-                    if isProcessing {
-                        ProgressView()
-                            .tint(.white)
-                    } else {
-                        Text(buttonTitle)
-                            .foregroundStyle(.white)
-                    }
+                    Capsule().fill(color).frame(height: 48)
+                    if isProcessing { ProgressView().tint(.white) }
+                    else { Text(buttonTitle).foregroundStyle(.white) }
                 }
             }
             .disabled(!canPerformButtonAction)
@@ -54,80 +57,76 @@ struct OrdinarySignView: View {
         .padding(.horizontal)
         .navigationTitle("普通签到")
         .navigationBarTitleDisplayMode(.inline)
-        .task { await prepare() }
-        .animation(.default, value: state)
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button(action: {
-                    showUserChoose = true
-                }) {
-                    Image("custom.list.bullet.badge.person.crop")
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { accounts = store.load(); showUserChoose = true } label: {
+                    Image(systemName: "person.2")
                 }
+                .accessibilityLabel("选择签到用户")
+                .disabled(isProcessing)
             }
         }
-        .sheet(isPresented: $showUserChoose) {
-            userChoose
+        .sheet(isPresented: $showUserChoose) { userChoose }
+        .task {
+            accounts = store.load()
+            if let currentUser { selectedUserIDs.insert(currentUser.uid) }
+            await prepare()
         }
+        .animation(.default, value: state)
     }
-    
+
     private var userChoose: some View {
         NavigationStack {
             List {
-                Section(header: Text("用户列表")) {
-                    HStack { // TODO: 每个数据项整一行都可以点击，点击为选择/取消选择操作
-                        Image(systemName: "person.circle.fill") // TODO: 这里显示头像
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 48, height: 48)
-                            .foregroundStyle(.blue.gradient)
-                        
-                        VStack(alignment: .leading) {
-                            Text("张诚志") // TODO: 这里显示姓名
-                                .font(.headline)
-                            Text("155****2754") // TODO: 这里显示脱敏后手机号
-                                .foregroundStyle(.secondary)
-                                .font(.subheadline)
-                        }
-                        
-                        Spacer()
-                        
-                        Image(systemName: "checkmark.circle.fill") // TODO: 选中后改为checkmark.circle.fill，未选中为circle
-                    } // TODO: List里第一行必须是当前账号，且默认选中，多账号页面中可能存在与当前账号重复的情况，本List中注意去重
-                    
-                    // TODO: 接下来加载多账号里存储的其他账号，注意去重
-                    HStack {
-                        Image(systemName: "person.circle.fill")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 48, height: 48)
-                            .foregroundStyle(.blue.gradient)
-                        
-                        VStack(alignment: .leading) {
-                            Text("董昊宇")
-                                .font(.headline)
-                            Text("136****9955")
-                                .foregroundStyle(.secondary)
-                                .font(.subheadline)
-                        }
-                        
-                        Spacer()
-                        
-                        Image(systemName: "circle")
+                Section("用户列表") {
+                    if let currentUser { userRow(currentUser, isCurrent: true) }
+                    ForEach(otherAccounts) { account in
+                        userRow(account.session.user, isCurrent: false)
                     }
                 }
             }
             .navigationTitle("选择需要签到的用户")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("关闭") { showUserChoose = false } } }
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("完成") { showUserChoose = false } } }
         }
+    }
+
+    private func userRow(_ user: ChaoxingUser, isCurrent: Bool) -> some View {
+        Button {
+            if selectedUserIDs.contains(user.uid) { selectedUserIDs.remove(user.uid) }
+            else { selectedUserIDs.insert(user.uid) }
+        } label: {
+            HStack(spacing: 12) {
+                AsyncImage(url: user.avatarURL) { image in
+                    image.resizable().scaledToFill()
+                } placeholder: {
+                    Image(systemName: "person.circle.fill").resizable().foregroundStyle(.blue)
+                }
+                .frame(width: 48, height: 48).clipShape(Circle())
+                VStack(alignment: .leading) {
+                    Text(user.name).font(.headline)
+                    Text(masked(user.phoneNumber)).font(.subheadline).foregroundStyle(.secondary)
+                }
+                Spacer()
+                if isCurrent { Text("当前账号").font(.caption).foregroundStyle(.secondary) }
+                Image(systemName: selectedUserIDs.contains(user.uid) ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(.tint)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func masked(_ value: String) -> String {
+        guard value.count >= 7 else { return value }
+        return "\(value.prefix(3))****\(value.suffix(4))"
     }
 
     private var icon: String {
         switch state {
         case .loading, .signing: "hourglass"
         case .ready: activity.kind.systemImage
-        case .success: "checkmark.circle.fill"
-        case .alreadySigned: "checkmark.circle.fill"
+        case .success, .alreadySigned: "checkmark.circle.fill"
         case .expired: "clock.badge.xmark"
         case .failure: "exclamationmark.triangle.fill"
         }
@@ -144,79 +143,123 @@ struct OrdinarySignView: View {
     private var message: String {
         switch state {
         case .loading: "正在检查活动状态与签到要求…"
-        case .ready: "点击下方按钮签到"
-        case .signing: "正在提交签到…"
-        case .success: "签到成功"
-        case .alreadySigned: "你已经签到过了"
+        case .ready: "选择账号后点击下方按钮签到"
+        case .signing: "正在逐个提交签到…"
+        case .success: "所选账号处理完成"
+        case .alreadySigned: "当前账号已签到，可选择其他账号签到"
         case .expired: "签到已截止"
-        case .failure(let message): message
+        case .failure(let text): text
         }
     }
 
-    private var isProcessing: Bool {
-        state == .loading || state == .signing
+    private var isProcessing: Bool { state == .loading || state == .signing }
+
+    private var pendingUserIDs: Set<Int> {
+        let availableIDs = Set(otherAccounts.map { $0.session.user.uid })
+            .union(currentUser.map { [$0.uid] } ?? [])
+        return selectedUserIDs.intersection(availableIDs).subtracting(completedUserIDs)
     }
 
     private var canPerformButtonAction: Bool {
-        switch state {
-        case .ready, .failure: true
-        case .loading, .signing, .success, .alreadySigned, .expired: false
+        guard !pendingUserIDs.isEmpty else { return false }
+        return switch state {
+        case .ready, .alreadySigned, .success, .failure: true
+        case .loading, .signing, .expired: false
         }
     }
 
     private var buttonTitle: String {
         switch state {
-        case .ready: "确认签到"
-        case .success, .alreadySigned: "已签到"
+        case .ready, .alreadySigned: "确认签到"
+        case .success: "继续签到"
+        case .failure: hasPrepared ? "重试签到" : "重新检查"
         case .expired: "签到已截止"
-        case .failure: "重新检查"
         case .loading, .signing: ""
         }
     }
 
     private func performButtonAction() {
-        switch state {
-        case .ready:
-            Task { await sign() }
-        case .failure:
-            Task { await prepare() }
-        case .loading, .signing, .success, .alreadySigned, .expired:
-            break
-        }
+        guard canPerformButtonAction else { return }
+        Task { if hasPrepared { await sign() } else { await prepare() } }
     }
 
     private func updateState(_ newState: State) {
-        withAnimation {
-            state = newState
-        }
+        withAnimation { state = newState }
     }
 
     private func prepare() async {
+        hasPrepared = false
         updateState(.loading)
         do {
             switch try await model.prepareOrdinarySign(activity) {
-            case .ready: updateState(.ready)
-            case .alreadySigned: updateState(.alreadySigned)
-            case .expired: updateState(.expired)
+            case .ready:
+                hasPrepared = true
+                updateState(.ready)
+            case .alreadySigned:
+                hasPrepared = true
+                if let currentUser { completedUserIDs.insert(currentUser.uid) }
+                updateState(.alreadySigned)
+            case .expired:
+                hasPrepared = true
+                updateState(.expired)
             }
-        } catch {
-            updateState(.failure(error.localizedDescription))
-        }
+        } catch { updateState(.failure(error.localizedDescription)) }
     }
 
     private func sign() async {
+        let targets = pendingUserIDs
         updateState(.signing)
-        do {
-            _ = try await model.signOrdinary(activity)
-            updateState(.success)
-        } catch let error as ChaoxingError {
-            switch error {
-            case .alreadySigned: updateState(.alreadySigned)
-            case .signExpired: updateState(.expired)
-            default: updateState(.failure(error.localizedDescription))
+        var failures = 0
+        if let currentUser, targets.contains(currentUser.uid) {
+            do {
+                _ = try await model.signOrdinary(activity)
+                completedUserIDs.insert(currentUser.uid)
+                results.append("\(currentUser.name)：签到成功")
+            } catch let error as ChaoxingError {
+                switch error {
+                case .alreadySigned:
+                    completedUserIDs.insert(currentUser.uid)
+                    results.append("\(currentUser.name)：已签到")
+                case .signExpired:
+                    updateState(.expired)
+                    return
+                default:
+                    failures += 1
+                    results.append("\(currentUser.name)：\(error.localizedDescription)")
+                }
+            } catch {
+                failures += 1
+                results.append("\(currentUser.name)：\(error.localizedDescription)")
             }
-        } catch {
-            updateState(.failure(error.localizedDescription))
         }
+        for account in otherAccounts where targets.contains(account.session.user.uid) {
+            let user = account.session.user
+            do {
+                let preparation = try await model.signOrdinary(activity, for: account)
+                completedUserIDs.insert(user.uid)
+                switch preparation {
+                case .ready: results.append("\(user.name)：签到成功")
+                case .alreadySigned: results.append("\(user.name)：已签到")
+                case .expired: results.append("\(user.name)：签到已截止")
+                }
+            } catch let error as ChaoxingError {
+                switch error {
+                case .alreadySigned:
+                    completedUserIDs.insert(user.uid)
+                    results.append("\(user.name)：已签到")
+                case .signExpired:
+                    completedUserIDs.insert(user.uid)
+                    results.append("\(user.name)：签到已截止")
+                default:
+                    failures += 1
+                    results.append("\(user.name)：\(error.localizedDescription)")
+                }
+            } catch {
+                failures += 1
+                results.append("\(user.name)：\(error.localizedDescription)")
+            }
+        }
+        if failures > 0 { updateState(.failure("部分账号签到失败，可重试")) }
+        else { updateState(.success) }
     }
 }
