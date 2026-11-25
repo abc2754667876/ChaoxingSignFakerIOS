@@ -160,6 +160,47 @@ final class AppModel {
         return preparation
     }
 
+    func signForOther(
+        _ account: OtherUserAccount,
+        action: (ChaoxingAPI) async throws -> AccountSignResult
+    ) async throws -> AccountSignResult {
+        let store = OtherUserStore()
+        guard let stored = store.load().first(where: { $0.session.user.uid == account.session.user.uid }) else {
+            throw ChaoxingError.invalidInput("账号已从多账号列表移除")
+        }
+        let cookieStorage = HTTPCookieStorage.sharedCookieStorage(forGroupContainerIdentifier: "sign-\(UUID().uuidString)")
+        let otherAPI = ChaoxingAPI(http: HTTPClient(cookieStorage: cookieStorage))
+        let cookies = stored.cookies.compactMap(\.cookie)
+        otherAPI.restore(stored.session, cookies: cookies)
+        do {
+            return try await action(otherAPI)
+        } catch ChaoxingError.duplicateDeviceSign {
+            var accounts = store.load()
+            guard let index = accounts.firstIndex(where: { $0.session.user.uid == stored.session.user.uid }) else {
+                throw ChaoxingError.invalidInput("账号已从多账号列表移除")
+            }
+            let old = accounts[index].session
+            let updated = ChaoxingSession(user: old.user, configuredFID: old.configuredFID, deviceCode: DeviceCodeStore.randomized())
+            accounts[index].session = updated
+            try store.save(accounts)
+            otherAPI.restore(updated, cookies: cookies)
+            return try await action(otherAPI)
+        }
+    }
+
+    func signForCurrent(action: (ChaoxingAPI) async throws -> AccountSignResult) async throws -> AccountSignResult {
+        do {
+            return try await action(api)
+        } catch ChaoxingError.duplicateDeviceSign {
+            guard let old = api.session else { throw ChaoxingError.sessionExpired }
+            let updated = ChaoxingSession(user: old.user, configuredFID: old.configuredFID, deviceCode: DeviceCodeStore.randomized())
+            let cookies = api.authenticationCookies
+            api.restore(updated, cookies: cookies)
+            sessionStore.save(session: updated, cookies: cookies)
+            return try await action(api)
+        }
+    }
+
     func prepareOrdinaryOrPhotoSign(_ activity: ChaoxingActivity) async throws -> OrdinaryOrPhotoSignPreparation {
         try await api.prepareOrdinaryOrPhotoSign(activity)
     }

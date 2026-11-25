@@ -26,6 +26,7 @@ struct CodeSignView: View {
     @State private var locations: [SavedLocation] = []
     @State private var locationProvider = CurrentLocationProvider()
     private let store = SavedLocationStore()
+    @State private var multi = MultiAccountSign()
 
     private var title: String { mode == .password ? "签到码签到" : "二维码签到" }
     private var isBusy: Bool { [.loading, .checking, .locating, .signing].contains(state) }
@@ -55,7 +56,7 @@ struct CodeSignView: View {
                         .foregroundStyle(state.isFailure ? .orange : .secondary)
                         .multilineTextAlignment(.center)
 
-                    if isPrepared && (state == .ready || state.isFailure) && mode == .password {
+                    if isPrepared && (state == .ready || state.isFailure || (state == .success && !multi.pendingIDs(current: model.user).isEmpty)) && mode == .password {
                         TextField("请输入签到码", text: $password)
                             .keyboardType(.numberPad)
                             .textContentType(.oneTimeCode)
@@ -81,6 +82,8 @@ struct CodeSignView: View {
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .task { await prepare() }
+        .toolbar { ToolbarItem(placement: .topBarTrailing) { MultiAccountToolbar(model: model, multi: multi) } }
+        .sheet(isPresented: $multi.isShowing) { MultiAccountChooser(model: model, multi: multi) }
         .sheet(isPresented: $isShowingScanner) {
             NavigationStack {
                 SignQRScanner { raw in
@@ -117,7 +120,7 @@ struct CodeSignView: View {
             } else {
                 actionLabel(buttonTitle, systemImage: icon, color: color)
             }
-        } else if state == .ready || state.isFailure {
+        } else if state == .ready || state.isFailure || (state == .success && !multi.pendingIDs(current: model.user).isEmpty) {
             VStack(spacing: 12) {
                 if mode == .password {
                     actionButton("验证并签到", systemImage: activity.kind.systemImage, color: color) {
@@ -135,6 +138,7 @@ struct CodeSignView: View {
                     }
                 }
             }
+            .disabled(multi.pendingIDs(current: model.user).isEmpty)
         } else {
             actionLabel(buttonTitle, systemImage: icon, color: color)
         }
@@ -239,6 +243,9 @@ struct CodeSignView: View {
         switch state {
         case .loading: return "正在检查活动状态与签到要求…"
         case .ready:
+            if multi.isCurrentAlreadySigned(model.user) {
+                return "当前账号已签到，可选择其他账号签到"
+            }
             if mode == .password {
                 return "请输入教师设置的\(codeLength.flatMap { $0 > 0 ? String($0) : nil } ?? "")位签到码\(isLocationRequired ? "，验证后选择位置" : "")"
             }
@@ -254,6 +261,7 @@ struct CodeSignView: View {
     }
 
     private func prepare() async {
+        multi.load(current: model.user)
         isPrepared = false
         state = .loading
         do {
@@ -264,7 +272,13 @@ struct CodeSignView: View {
                 isRefreshingQR = refreshing
                 isPrepared = true
                 state = .ready
-            case .alreadySigned: state = .alreadySigned
+            case .alreadySigned(let locationRequired, let length, let refreshing):
+                isLocationRequired = locationRequired
+                codeLength = length
+                isRefreshingQR = refreshing
+                isPrepared = true
+                multi.markCurrent(model.user, as: .alreadySigned)
+                state = .ready
             case .expired: state = .expired
             }
         } catch { state = .failure(error.localizedDescription) }
@@ -314,17 +328,30 @@ struct CodeSignView: View {
     }
 
     private func sign(_ location: ChaoxingSignLocation?) async {
+        guard !multi.pendingIDs(current: model.user).isEmpty else { state = .ready; return }
         state = .signing
-        do {
-            _ = try await model.signCode(activity, code: mode == .password ? password : nil, qrCode: qrCode, location: location)
-            state = .success
-        } catch let error as ChaoxingError {
-            switch error {
-            case .alreadySigned: state = .alreadySigned
-            case .signExpired: state = .expired
-            default: state = .failure(error.localizedDescription)
+        let code = mode == .password ? password : nil
+        let scanned = qrCode
+        let failed = await multi.sign(model: model) {
+            try await model.signForCurrent { api in
+                _ = try await api.signCode(activity, code: code, qrCode: scanned, location: location)
+                return .success
             }
-        } catch { state = .failure(error.localizedDescription) }
+        } other: { api in
+            switch try await api.prepareCodeSign(activity) {
+            case .ready:
+                if let code {
+                    guard try await api.checkPassword(code, for: activity) else {
+                        throw ChaoxingError.invalidInput("签到码错误")
+                    }
+                }
+                _ = try await api.signCode(activity, code: code, qrCode: scanned, location: location)
+                return .success
+            case .alreadySigned: return .alreadySigned
+            case .expired: return .expired
+            }
+        }
+        state = failed ? .failure("部分账号签到失败，可重试") : .success
     }
 }
 

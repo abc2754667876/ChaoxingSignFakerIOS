@@ -121,7 +121,7 @@ enum GestureSignPreparation: Equatable, Sendable {
 
 enum CodeSignPreparation: Equatable, Sendable {
     case ready(isLocationRequired: Bool, codeLength: Int?, isRefreshingQR: Bool)
-    case alreadySigned
+    case alreadySigned(isLocationRequired: Bool, codeLength: Int?, isRefreshingQR: Bool)
     case expired
 }
 

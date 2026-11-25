@@ -29,6 +29,7 @@ struct GestureSignView: View {
     @State private var isShowingLocations = false
     @State private var detent: PresentationDetent = .fraction(0.45)
     @State private var locationProvider = CurrentLocationProvider()
+    @State private var multi = MultiAccountSign()
 
     init(
         model: AppModel,
@@ -76,6 +77,8 @@ struct GestureSignView: View {
         .navigationTitle("手势签到")
         .navigationBarTitleDisplayMode(.inline)
         .task { await prepare() }
+        .toolbar { ToolbarItem(placement: .topBarTrailing) { MultiAccountToolbar(model: model, multi: multi) } }
+        .sheet(isPresented: $multi.isShowing) { MultiAccountChooser(model: model, multi: multi) }
         .onAppear { locations = store.load() }
         .sheet(isPresented: $isShowingLocations) {
             locationsSheet
@@ -143,6 +146,7 @@ struct GestureSignView: View {
                     locations = store.load()
                     isShowingLocations = true
                 }
+                .disabled(multi.pendingIDs(current: model.user).isEmpty)
 
                 actionButton("重新绘制手势", systemImage: "arrow.counterclockwise", color: .secondary) {
                     redrawPattern()
@@ -153,6 +157,7 @@ struct GestureSignView: View {
                 actionButton("重新提交签到", systemImage: "arrow.clockwise", color: .orange) {
                     Task { await sign(code: verifiedCode, location: nil) }
                 }
+                .disabled(multi.pendingIDs(current: model.user).isEmpty)
 
                 actionButton("重新绘制手势", systemImage: activity.kind.systemImage, color: .secondary) {
                     redrawPattern()
@@ -258,7 +263,9 @@ struct GestureSignView: View {
         return switch state {
         case .loading: "正在检查活动状态与签到要求…"
         case .ready:
-            if verifiedCode != nil, isLocationRequired {
+            if multi.isCurrentAlreadySigned(model.user), verifiedCode == nil {
+                "当前账号已签到，可选择其他账号签到"
+            } else if verifiedCode != nil, isLocationRequired {
                 "手势验证成功，请选择签到位置"
             } else {
                 "在下方绘制教师设置的手势图案"
@@ -282,15 +289,15 @@ struct GestureSignView: View {
     }
 
     private var shouldShowPattern: Bool {
-        hasPrepared && verifiedCode == nil && (state == .ready || state == .checking || state.isFailure)
+        hasPrepared && verifiedCode == nil && (state == .ready || state == .checking || state.isFailure || (state == .success && !multi.pendingIDs(current: model.user).isEmpty))
     }
 
     private var canDrawPattern: Bool {
-        hasPrepared && verifiedCode == nil && (state == .ready || state.isFailure)
+        hasPrepared && verifiedCode == nil && !multi.pendingIDs(current: model.user).isEmpty && (state == .ready || state.isFailure || state == .success)
     }
 
     private var canRetry: Bool {
-        state == .ready || state.isFailure
+        state == .ready || state.isFailure || (state == .success && !multi.pendingIDs(current: model.user).isEmpty)
     }
 
     private var isProcessing: Bool {
@@ -326,6 +333,7 @@ struct GestureSignView: View {
     }
 
     private func prepare() async {
+        multi.load(current: model.user)
         hasPrepared = false
         verifiedCode = nil
         patternError = nil
@@ -340,7 +348,8 @@ struct GestureSignView: View {
             case .alreadySigned(let isLocationRequired):
                 self.isLocationRequired = isLocationRequired
                 hasPrepared = true
-                updateState(.alreadySigned)
+                multi.markCurrent(model.user, as: .alreadySigned)
+                updateState(.ready)
             case .expired(let isLocationRequired):
                 self.isLocationRequired = isLocationRequired
                 hasPrepared = true
@@ -397,19 +406,26 @@ struct GestureSignView: View {
     }
 
     private func sign(code: String, location: ChaoxingSignLocation?) async {
+        guard !multi.pendingIDs(current: model.user).isEmpty else { updateState(.ready); return }
         updateState(.signing)
-        do {
-            _ = try await model.signGesture(activity, code: code, location: location)
-            updateState(.success)
-        } catch let error as ChaoxingError {
-            switch error {
-            case .alreadySigned: updateState(.alreadySigned)
-            case .signExpired: updateState(.expired)
-            default: updateState(.failure(error.localizedDescription))
+        let failed = await multi.sign(model: model) {
+            try await model.signForCurrent { api in
+                _ = try await api.signGesture(activity, code: code, location: location)
+                return .success
             }
-        } catch {
-            updateState(.failure(error.localizedDescription))
+        } other: { api in
+            switch try await api.prepareGestureSign(activity) {
+            case .ready:
+                guard try await api.checkGestureSignCode(code, for: activity) else {
+                    throw ChaoxingError.invalidInput("手势图案错误")
+                }
+                _ = try await api.signGesture(activity, code: code, location: location)
+                return .success
+            case .alreadySigned: return .alreadySigned
+            case .expired: return .expired
+            }
         }
+        updateState(failed ? .failure("部分账号签到失败，可重试") : .success)
     }
 
     private func redrawPattern() {

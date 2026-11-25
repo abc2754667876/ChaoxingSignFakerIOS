@@ -276,7 +276,13 @@ final class ChaoxingAPI {
         try await postAnalysis(activeID: activity.id)
         let info = try await signInfo(activeID: activity.id)
         if isExpired(response.text) { return .expired }
-        if isAlreadySigned(response.text) { return .alreadySigned }
+        if isAlreadySigned(response.text) {
+            return .alreadySigned(
+                isLocationRequired: info.integer("ifopenAddress") == 1,
+                codeLength: activity.kind == .password ? info.integer("numberCount") : nil,
+                isRefreshingQR: info.integer("ifrefreshewm") == 1
+            )
+        }
         guard info.integer("openCheckFaceFlag") != 1 else {
             throw ChaoxingError.unsupportedSign("该活动要求人脸识别，当前版本暂未接入")
         }

@@ -23,6 +23,7 @@ struct PhotoSignView: View {
     @State private var photoPickerItem: PhotosPickerItem?
     @State private var isCameraPresented = false
     @State private var isShowingCameraUnavailable = false
+    @State private var multi = MultiAccountSign()
 
     var body: some View {
         Group {
@@ -35,6 +36,8 @@ struct PhotoSignView: View {
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .task { await prepare() }
+        .toolbar { if !hasPrepared || isPhotoRequired { ToolbarItem(placement: .topBarTrailing) { MultiAccountToolbar(model: model, multi: multi) } } }
+        .sheet(isPresented: $multi.isShowing) { MultiAccountChooser(model: model, multi: multi) }
         .onChange(of: photoPickerItem) { _, newItem in
             guard let newItem else { return }
             Task { await loadAndSubmit(newItem) }
@@ -107,8 +110,8 @@ struct PhotoSignView: View {
                 .frame(maxWidth: .infinity, minHeight: 48)
         } else if canChoosePhoto {
             VStack(spacing: 12) {
-                if let selectedImage, state.isFailure {
-                    actionButton("重新提交当前图片", systemImage: "arrow.clockwise", color: .orange) {
+                if let selectedImage, state.isFailure || state == .success {
+                    actionButton(state.isFailure ? "重新提交当前图片" : "使用当前图片继续签到", systemImage: "arrow.clockwise", color: state.isFailure ? .orange : .accentColor) {
                         Task { await submit(selectedImage) }
                     }
                 }
@@ -126,6 +129,7 @@ struct PhotoSignView: View {
                 }
                 .buttonStyle(.plain)
             }
+            .disabled(multi.pendingIDs(current: model.user).isEmpty)
         } else if canSubmitOrdinary {
             actionButton(state.isFailure ? "重新签到" : "确认签到", systemImage: activity.kind.systemImage, color: color) {
                 Task { await submitOrdinary() }
@@ -185,7 +189,7 @@ struct PhotoSignView: View {
         switch state {
         case .loading: "正在检查活动状态与签到要求…"
         case .ready:
-            isPhotoRequired ? "通过相机或相册选择图片签到" : "点击下方按钮签到"
+            isPhotoRequired ? (multi.isCurrentAlreadySigned(model.user) ? "当前账号已签到，可选择其他账号签到" : "通过相机或相册选择图片签到") : "点击下方按钮签到"
         case .signing:
             isPhotoRequired ? "正在压缩、上传图片并提交签到…" : "正在提交签到…"
         case .success: "签到成功"
@@ -205,7 +209,7 @@ struct PhotoSignView: View {
 
     private var canChoosePhoto: Bool {
         guard hasPrepared, isPhotoRequired else { return false }
-        return state == .ready || state.isFailure
+        return state == .ready || state.isFailure || (state == .success && !multi.pendingIDs(current: model.user).isEmpty)
     }
 
     private var canSubmitOrdinary: Bool {
@@ -218,6 +222,7 @@ struct PhotoSignView: View {
     }
 
     private func prepare() async {
+        multi.load(current: model.user)
         hasPrepared = false
         updateState(.loading)
         do {
@@ -229,7 +234,10 @@ struct PhotoSignView: View {
             case .alreadySigned(let isPhotoRequired):
                 self.isPhotoRequired = isPhotoRequired
                 hasPrepared = true
-                updateState(.alreadySigned)
+                if isPhotoRequired {
+                    multi.markCurrent(model.user, as: .alreadySigned)
+                    updateState(.ready)
+                } else { updateState(.alreadySigned) }
             case .expired(let isPhotoRequired):
                 self.isPhotoRequired = isPhotoRequired
                 hasPrepared = true
@@ -256,13 +264,29 @@ struct PhotoSignView: View {
     }
 
     private func submit(_ image: UIImage) async {
+        guard !multi.pendingIDs(current: model.user).isEmpty else { updateState(.ready); return }
         updateState(.signing)
         do {
             guard let jpegData = image.signJPEGData() else {
                 throw ChaoxingError.invalidInput("无法处理选中的图片")
             }
-            _ = try await model.signPhoto(activity, jpegData: jpegData)
-            updateState(.success)
+            let failed = await multi.sign(model: model) {
+                try await model.signForCurrent { api in
+                    _ = try await api.signPhoto(activity, jpegData: jpegData)
+                    return .success
+                }
+            } other: { api in
+                switch try await api.prepareOrdinaryOrPhotoSign(activity) {
+                case .ready(isPhotoRequired: true):
+                    _ = try await api.signPhoto(activity, jpegData: jpegData)
+                    return .success
+                case .ready(isPhotoRequired: false):
+                    throw ChaoxingError.unsupportedSign("该账号无需上传照片")
+                case .alreadySigned: return .alreadySigned
+                case .expired: return .expired
+                }
+            }
+            updateState(failed ? .failure("部分账号签到失败，可重试") : .success)
         } catch {
             handleSignError(error)
         }

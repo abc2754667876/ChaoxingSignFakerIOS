@@ -23,6 +23,7 @@ struct LocationSignView: View {
     @State private var isShowingLocations = false
     @State private var detent: PresentationDetent = .fraction(0.45)
     @State private var locationProvider = CurrentLocationProvider()
+    @State private var multi = MultiAccountSign()
 
     init(
         model: AppModel,
@@ -58,6 +59,8 @@ struct LocationSignView: View {
         .navigationTitle("位置签到")
         .navigationBarTitleDisplayMode(.inline)
         .task { await prepare() }
+        .toolbar { ToolbarItem(placement: .topBarTrailing) { MultiAccountToolbar(model: model, multi: multi) } }
+        .sheet(isPresented: $multi.isShowing) { MultiAccountChooser(model: model, multi: multi) }
         .onAppear { locations = store.load() }
         .sheet(isPresented: $isShowingLocations) {
             locationsSheet
@@ -94,6 +97,7 @@ struct LocationSignView: View {
                     isShowingLocations = true
                 }
             }
+            .disabled(multi.pendingIDs(current: model.user).isEmpty)
         } else if case .failure = state {
             actionButton("重新检查", systemImage: "arrow.clockwise") {
                 Task { await prepare() }
@@ -162,7 +166,7 @@ struct LocationSignView: View {
     private var message: String {
         switch state {
         case .loading: "正在检查活动状态与签到要求…"
-        case .ready: readyMessage
+        case .ready: multi.isCurrentAlreadySigned(model.user) ? "当前账号已签到，可选择其他账号签到" : readyMessage
         case .locating: "正在获取当前位置与地址…"
         case .signing: "正在提交位置签到…"
         case .success: "签到成功"
@@ -192,7 +196,7 @@ struct LocationSignView: View {
     }
 
     private var canChooseLocation: Bool {
-        hasPrepared && (state == .ready || state.isFailure)
+        hasPrepared && (state == .ready || state.isFailure || (state == .success && !multi.pendingIDs(current: model.user).isEmpty))
     }
 
     private func actionButton(
@@ -219,6 +223,7 @@ struct LocationSignView: View {
     }
 
     private func prepare() async {
+        multi.load(current: model.user)
         hasPrepared = false
         updateState(.loading)
         do {
@@ -230,7 +235,8 @@ struct LocationSignView: View {
             case .alreadySigned(let detail):
                 self.detail = detail
                 hasPrepared = true
-                updateState(.alreadySigned)
+                multi.markCurrent(model.user, as: .alreadySigned)
+                updateState(.ready)
             case .expired(let detail):
                 self.detail = detail
                 hasPrepared = true
@@ -253,19 +259,23 @@ struct LocationSignView: View {
     }
 
     private func sign(_ location: ChaoxingSignLocation) async {
+        guard !multi.pendingIDs(current: model.user).isEmpty else { updateState(.ready); return }
         updateState(.signing)
-        do {
-            _ = try await model.signLocation(activity, location: location)
-            updateState(.success)
-        } catch let error as ChaoxingError {
-            switch error {
-            case .alreadySigned: updateState(.alreadySigned)
-            case .signExpired: updateState(.expired)
-            default: updateState(.failure(error.localizedDescription))
+        let failed = await multi.sign(model: model) {
+            try await model.signForCurrent { api in
+                _ = try await api.signLocation(activity, location: location)
+                return .success
             }
-        } catch {
-            updateState(.failure(error.localizedDescription))
+        } other: { api in
+            switch try await api.prepareLocationSign(activity) {
+            case .ready:
+                _ = try await api.signLocation(activity, location: location)
+                return .success
+            case .alreadySigned: return .alreadySigned
+            case .expired: return .expired
+            }
         }
+        updateState(failed ? .failure("部分账号签到失败，可重试") : .success)
     }
 
 }
