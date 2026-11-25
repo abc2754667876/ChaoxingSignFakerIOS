@@ -70,6 +70,7 @@ struct ProfileView: View {
                             Image(systemName: "chevron.right").foregroundStyle(.secondary)
                         }
                     }
+                    .buttonStyle(.plain)
                 }
 
                 Section("项目仓库与赞助") {
