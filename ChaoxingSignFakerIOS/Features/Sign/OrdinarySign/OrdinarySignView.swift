@@ -6,6 +6,43 @@ struct OrdinarySignView: View {
         case failure(String)
     }
 
+    private enum UserSignStatus: Equatable {
+        case signing, success, alreadySigned, expired
+        case failure(String)
+
+        var title: String {
+            switch self {
+            case .signing: "签到中"
+            case .success: "签到成功"
+            case .alreadySigned: "已签到"
+            case .expired: "已截止"
+            case .failure: "签到失败"
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .signing: "hourglass"
+            case .success, .alreadySigned: "checkmark.circle.fill"
+            case .expired: "clock.badge.xmark"
+            case .failure: "exclamationmark.triangle.fill"
+            }
+        }
+
+        var color: Color {
+            switch self {
+            case .signing: .blue
+            case .success, .alreadySigned: .green
+            case .expired, .failure: .orange
+            }
+        }
+
+        var failureMessage: String? {
+            if case .failure(let message) = self { return message }
+            return nil
+        }
+    }
+
     let model: AppModel
     let activity: ChaoxingActivity
     private let store = OtherUserStore()
@@ -16,7 +53,7 @@ struct OrdinarySignView: View {
     @State private var accounts: [OtherUserAccount] = []
     @State private var selectedUserIDs: Set<Int> = []
     @State private var completedUserIDs: Set<Int> = []
-    @State private var results: [String] = []
+    @State private var userStatuses: [Int: UserSignStatus] = [:]
 
     private var currentUser: ChaoxingUser? { model.user }
     private var otherAccounts: [OtherUserAccount] {
@@ -35,15 +72,6 @@ struct OrdinarySignView: View {
             Text(message)
                 .font(.subheadline).foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            if !results.isEmpty { // TODO: 这里状态文本去掉
-                VStack(alignment: .leading, spacing: 6) {
-                ForEach(results.indices, id: \.self) { index in
-                    Text(results[index]).font(.subheadline)
-                }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.top, 20)
-            }
             Button(action: performButtonAction) {
                 ZStack {
                     Capsule().fill(color).frame(height: 48)
@@ -63,7 +91,6 @@ struct OrdinarySignView: View {
                     Image(systemName: "person.2")
                 }
                 .accessibilityLabel("选择签到用户")
-                .disabled(isProcessing)
             }
         }
         .sheet(isPresented: $showUserChoose) { userChoose }
@@ -106,18 +133,23 @@ struct OrdinarySignView: View {
                 VStack(alignment: .leading) {
                     HStack {
                         Text(user.name).font(.headline)
-                        HStack(spacing: 2) { // TODO: 这里显示每个账号的签到状态
-                            Image(systemName: "checkmark.circle.fill")
-                            Text("签到成功")
+                        if let status = userStatuses[user.uid] {
+                            HStack(spacing: 3) {
+                                Image(systemName: status.icon)
+                                Text(status.title)
+                            }
+                            .padding(4)
+                            .foregroundStyle(status.color)
+                            .font(.caption)
+                            .background(status.color.opacity(0.1), in: RoundedRectangle(cornerRadius: 4))
+                            .accessibilityLabel(status.failureMessage.map { "\(status.title)：\($0)" } ?? status.title)
                         }
-                        .padding(4)
-                        .foregroundStyle(.green)
-                        .font(.caption)
-                        .background(.green.opacity(0.1))
-                        .cornerRadius(4)
                     }
 
                     Text(masked(user.phoneNumber)).font(.subheadline).foregroundStyle(.secondary)
+                    if let failure = userStatuses[user.uid]?.failureMessage {
+                        Text(failure).font(.caption).foregroundStyle(.orange)
+                    }
                 }
                 Spacer()
                 if isCurrent { Text("当前账号").font(.caption).foregroundStyle(.secondary) }
@@ -127,6 +159,7 @@ struct OrdinarySignView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .disabled(state == .signing)
     }
 
     private func masked(_ value: String) -> String {
@@ -209,7 +242,10 @@ struct OrdinarySignView: View {
                 updateState(.ready)
             case .alreadySigned:
                 hasPrepared = true
-                if let currentUser { completedUserIDs.insert(currentUser.uid) }
+                if let currentUser {
+                    completedUserIDs.insert(currentUser.uid)
+                    userStatuses[currentUser.uid] = .alreadySigned
+                }
                 updateState(.alreadySigned)
             case .expired:
                 hasPrepared = true
@@ -223,52 +259,55 @@ struct OrdinarySignView: View {
         updateState(.signing)
         var failures = 0
         if let currentUser, targets.contains(currentUser.uid) {
+            userStatuses[currentUser.uid] = .signing
             do {
                 _ = try await model.signOrdinary(activity)
                 completedUserIDs.insert(currentUser.uid)
-                results.append("\(currentUser.name)：签到成功")
+                userStatuses[currentUser.uid] = .success
             } catch let error as ChaoxingError {
                 switch error {
                 case .alreadySigned:
                     completedUserIDs.insert(currentUser.uid)
-                    results.append("\(currentUser.name)：已签到")
+                    userStatuses[currentUser.uid] = .alreadySigned
                 case .signExpired:
+                    userStatuses[currentUser.uid] = .expired
                     updateState(.expired)
                     return
                 default:
                     failures += 1
-                    results.append("\(currentUser.name)：\(error.localizedDescription)")
+                    userStatuses[currentUser.uid] = .failure(error.localizedDescription)
                 }
             } catch {
                 failures += 1
-                results.append("\(currentUser.name)：\(error.localizedDescription)")
+                userStatuses[currentUser.uid] = .failure(error.localizedDescription)
             }
         }
         for account in otherAccounts where targets.contains(account.session.user.uid) {
             let user = account.session.user
+            userStatuses[user.uid] = .signing
             do {
                 let preparation = try await model.signOrdinary(activity, for: account)
                 completedUserIDs.insert(user.uid)
                 switch preparation {
-                case .ready: results.append("\(user.name)：签到成功")
-                case .alreadySigned: results.append("\(user.name)：已签到")
-                case .expired: results.append("\(user.name)：签到已截止")
+                case .ready: userStatuses[user.uid] = .success
+                case .alreadySigned: userStatuses[user.uid] = .alreadySigned
+                case .expired: userStatuses[user.uid] = .expired
                 }
             } catch let error as ChaoxingError {
                 switch error {
                 case .alreadySigned:
                     completedUserIDs.insert(user.uid)
-                    results.append("\(user.name)：已签到")
+                    userStatuses[user.uid] = .alreadySigned
                 case .signExpired:
                     completedUserIDs.insert(user.uid)
-                    results.append("\(user.name)：签到已截止")
+                    userStatuses[user.uid] = .expired
                 default:
                     failures += 1
-                    results.append("\(user.name)：\(error.localizedDescription)")
+                    userStatuses[user.uid] = .failure(error.localizedDescription)
                 }
             } catch {
                 failures += 1
-                results.append("\(user.name)：\(error.localizedDescription)")
+                userStatuses[user.uid] = .failure(error.localizedDescription)
             }
         }
         if failures > 0 { updateState(.failure("部分账号签到失败，可重试")) }
