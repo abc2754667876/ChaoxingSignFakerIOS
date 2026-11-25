@@ -18,8 +18,6 @@ struct LoginView: View {
                         .textContentType(.password)
                 } header: {
                     Text("学习通账号")
-                } footer: {
-                    Text("密码仅用于登录请求，不会保存；登录会话安全保存在本机，退出登录后会立即清除。")
                 }
 
                 if let error = model.loginError {
