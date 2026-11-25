@@ -20,7 +20,8 @@ struct MainTabView: View {
                     Label("位置", systemImage: "location")
                 }
 
-            ProfileView(model: model)
+            //ProfileView(model: model)
+            ProfileView()
                 .tabItem {
                     Label("我的", systemImage: "person")
                 }
@@ -41,29 +42,6 @@ private struct PlaceholderTabView: View {
                 description: Text(description)
             )
             .navigationTitle(title)
-        }
-    }
-}
-
-private struct ProfileView: View {
-    @Bindable var model: AppModel
-
-    var body: some View {
-        NavigationStack {
-            List {
-                if let user = model.user {
-                    Section("当前账号") {
-                        LabeledContent("姓名", value: user.name)
-                    }
-                }
-
-                Section {
-                    Button("退出登录", role: .destructive) {
-                        model.logout()
-                    }
-                }
-            }
-            .navigationTitle("我的")
         }
     }
 }
