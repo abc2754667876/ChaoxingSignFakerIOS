@@ -174,6 +174,26 @@ struct CaptchaSignTests {
         }
     }
 
+    @Test func submitsPredictedOffsetWithoutManualSliderNormalization() async throws {
+        let (api, fixture) = makeAPI()
+        api.captchaProvider = { api, activity in
+            let challenge = try await api.captcha(for: activity)
+            let result = try await CaptchaAutomaticResolver.resolve(imageData: Data()) { _ in 136 } verify: { offset in
+                try await api.checkCaptcha(challenge, xPosition: offset, for: activity)
+            }
+            guard case .solved(let validate) = result else {
+                throw ChaoxingError.captchaFailed("Automatic verification failed")
+            }
+            return validate
+        }
+        #expect(try await api.signOrdinary(activity()) == .success)
+        let check = query(try #require(fixture.requests("result").first))
+        #expect(check["textClickArr"] == "[{\"x\":136}]")
+        let final = query(try #require(fixture.requests("stuSignajax").last))
+        #expect(final["validate"] == "validated-1")
+        #expect(final["enc2"] == "captcha-enc")
+    }
+
     @Test func rejectsExpiredAndInvalidPositionsWithoutNetworkRequests() async throws {
         let (api, fixture) = makeAPI()
         let original = try await api.captcha(for: activity())

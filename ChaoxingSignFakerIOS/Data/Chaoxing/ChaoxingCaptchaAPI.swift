@@ -41,14 +41,19 @@ extension ChaoxingAPI {
     }
 
     func checkCaptcha(_ challenge: ChaoxingCaptcha, progress: Double, for activity: ChaoxingActivity) async throws -> String? {
-        guard let current = session else { throw ChaoxingError.sessionExpired }
         guard progress.isFinite else { throw ChaoxingError.invalidInput("滑块位置无效") }
+        return try await checkCaptcha(challenge, xPosition: ChaoxingCaptcha.verificationX(progress: progress), for: activity)
+    }
+
+    func checkCaptcha(_ challenge: ChaoxingCaptcha, xPosition: Int, for activity: ChaoxingActivity) async throws -> String? {
+        guard let current = session else { throw ChaoxingError.sessionExpired }
+        guard (-8...272).contains(xPosition) else { throw ChaoxingError.invalidInput("滑块位置无效") }
         guard challenge.expiresAt > .now else { throw ChaoxingError.captchaFailed("验证码已过期，请刷新") }
         let response = try await http.send(
             URL(string: "https://captcha.chaoxing.com/captcha/check/verification/result")!,
             query: captchaQuery([
                 ("captchaId", challenge.captchaID), ("type", challenge.type), ("token", challenge.token),
-                ("textClickArr", "[{\"x\":\(ChaoxingCaptcha.verificationX(progress: progress))}]"),
+                ("textClickArr", "[{\"x\":\(xPosition)}]"),
                 ("coordinate", "[]"), ("runEnv", "10"), ("version", challenge.version),
                 ("t", "a"), ("iv", challenge.iv)
             ]),

@@ -6,6 +6,10 @@
 	objectVersion = 90;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		00000000000000000000CA01 /* CaptchaRuntime in Frameworks */ = {isa = PBXBuildFile; productRef = 00000000000000000000CA02 /* CaptchaRuntime */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		000000000000000000000150 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -71,6 +75,7 @@
 		000000000000000130000000 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
+				00000000000000000000CA01 /* CaptchaRuntime in Frameworks */,
 			);
 		};
 		000000000000000230000000 /* Frameworks */ = {
@@ -116,6 +121,9 @@
 				000000000000000000000010 /* ChaoxingSignFakerIOS */,
 			);
 			name = ChaoxingSignFakerIOS;
+			packageProductDependencies = (
+				00000000000000000000CA02 /* CaptchaRuntime */,
+			);
 			productName = MyApp;
 			productReference = 000000000000000000000120 /* ChaoxingSignFakerIOS.app */;
 			productType = "com.apple.product-type.application";
@@ -169,6 +177,9 @@
 			);
 			mainGroup = 000000000000000000000001;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				00000000000000000000CA03 /* XCLocalSwiftPackageReference "Packages/CaptchaRuntime" */,
+			);
 			preferredProjectObjectVersion = 90;
 			productRefGroup = 000000000000000000000020 /* Products */;
 			projectDirPath = "";
@@ -523,6 +534,21 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		00000000000000000000CA03 /* XCLocalSwiftPackageReference "Packages/CaptchaRuntime" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/CaptchaRuntime;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		00000000000000000000CA02 /* CaptchaRuntime */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 00000000000000000000CA03 /* XCLocalSwiftPackageReference "Packages/CaptchaRuntime" */;
+			productName = CaptchaRuntime;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 000000000000000000000000 /* Project object */;
 }

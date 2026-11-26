@@ -68,7 +68,9 @@ Repository 抽象接口目录。
 签到通过表单 POST 提交，附带原域名预签到页的 `Referer` 和 `X-Requested-With: XMLHttpRequest`。`ChaoxingSignRoute` 对齐安卓端，将 `mobilelearn.chaoxing.com` 请求路由至 `data-xxt.aichaoxing.com` 并保留原 Host；网络错误或 404 时回退原域名。网络层按原域名维护当前账号 Cookie，验证码地址与来源参数保持原域名。
 
 #### Captcha/
-手动滑块验证功能。`CaptchaCoordinator` 管理异步等待和取消，`CaptchaView` 展示图片、拖动、校验与刷新。验证码接口位于 `Data/Chaoxing/ChaoxingCaptchaAPI.swift`。离开签到页或退出登录时取消等待；二维码在验证后提交前重新检查有效性。当前不包含模型自动识别。
+`CaptchaCoordinator` 管理异步等待和取消，`CaptchaView` 展示图片、拖动、校验与刷新。首次加载时通过 `CaptchaPredictor` 在独立 actor 中运行 `Resources/captcha.ort`，将预测偏移送到服务端校验；每次验证只自动尝试一次。模型不可用或无有效检测时保留原图供手动操作，自动校验失败后刷新挑战再转手动。刷新按钮及手动失败后的刷新不触发连续自动识别。
+
+推理使用本地 Swift 包 `Packages/CaptchaRuntime` 中的 ONNX Runtime 1.29.0 CPU 原生库；模型沿用安卓端文件。预处理将图片放在正方形左上角、其余补黑，缩放为 640×640 并转换成 RGB Float32 NCHW；输出选择最高置信度的缺口框，还原为原图坐标并应用安卓端的 4 像素偏移修正。验证码接口位于 `Data/Chaoxing/ChaoxingCaptchaAPI.swift`。离开签到页或退出登录时取消等待；模型执行后校验账号与请求标识，二维码在验证后提交前重新检查有效性。
 
 #### LocationSign/
 位置签到功能。职责：
