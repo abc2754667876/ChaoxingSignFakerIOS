@@ -5,6 +5,8 @@ import UIKit
 struct OtherUserFace: Codable, Identifiable, Hashable {
     let id: String
     let addedAt: Date
+    var useCount: Int? = nil
+    var hasFailed: Bool? = nil
 }
 
 struct OtherUserAccount: Codable, Identifiable {

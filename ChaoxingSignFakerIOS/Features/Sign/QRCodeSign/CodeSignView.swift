@@ -70,6 +70,8 @@ struct CodeSignView: View {
                             }
                     }
 
+                    FaceSignRequirementLabel(model: model, activity: activity)
+
                     controls
                         .padding(.top, isPrepared && mode == .password ? 20 : 72)
                 }
@@ -81,6 +83,7 @@ struct CodeSignView: View {
         }
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
+        .faceSignSupport(model: model, activity: activity)
         .task { await prepare() }
         .toolbar { ToolbarItem(placement: .topBarTrailing) { MultiAccountToolbar(model: model, multi: multi) } }
         .sheet(isPresented: $multi.isShowing) { MultiAccountChooser(model: model, multi: multi) }

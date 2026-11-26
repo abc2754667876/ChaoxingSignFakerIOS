@@ -35,6 +35,7 @@ struct PhotoSignView: View {
         }
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
+        .faceSignSupport(model: model, activity: activity)
         .task { await prepare() }
         .toolbar { if !hasPrepared || isPhotoRequired { ToolbarItem(placement: .topBarTrailing) { MultiAccountToolbar(model: model, multi: multi) } } }
         .sheet(isPresented: $multi.isShowing) { MultiAccountChooser(model: model, multi: multi) }
@@ -77,6 +78,8 @@ struct PhotoSignView: View {
                         .font(.subheadline)
                         .foregroundStyle(state.isFailure ? .orange : .secondary)
                         .multilineTextAlignment(.center)
+
+                    FaceSignRequirementLabel(model: model, activity: activity)
 
                     if let selectedImage {
                         Image(uiImage: selectedImage)

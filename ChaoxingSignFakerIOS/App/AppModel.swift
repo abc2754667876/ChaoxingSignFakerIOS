@@ -5,6 +5,8 @@ import Observation
 @Observable
 final class AppModel {
     private let api = ChaoxingAPI()
+    let faceSign = FaceSignCoordinator()
+    var faceRequiredActivityIDs: Set<Int64> = []
     private let courseFavoritesStore = CourseFavoritesStore()
     private let sessionStore = ChaoxingSessionStore()
 
@@ -31,6 +33,27 @@ final class AppModel {
         sessionStore.save(session: updated, cookies: cookies)
     }
 
+    private func configureFaceSign(_ api: ChaoxingAPI) {
+        api.faceSignIsActive = { [weak self] activityID in
+            self?.faceSign.isActive(activityID: activityID) ?? false
+        }
+        api.faceRequirementChanged = { [weak self, weak api] activityID, isRequired in
+            guard let self, api?.session?.user.uid == self.user?.uid else { return }
+            if isRequired { self.faceRequiredActivityIDs.insert(activityID) }
+            else { self.faceRequiredActivityIDs.remove(activityID) }
+        }
+        api.facePhotoProvider = { [weak self] api, activity in
+            guard let self else { throw ChaoxingError.sessionExpired }
+            return try await self.faceSign.select(api: api, activity: activity, currentUID: self.user?.uid)
+        }
+        api.facePhotoRejected = { [weak self] activityID, uid in
+            self?.faceSign.finish(activityID: activityID, uid: uid, isFailure: true)
+        }
+        api.facePhotoAccepted = { [weak self] activityID, uid in
+            self?.faceSign.finish(activityID: activityID, uid: uid, isFailure: false)
+        }
+    }
+
     func uploadFacePhoto(_ jpegData: Data) async throws -> String {
         try await api.uploadFacePhoto(jpegData)
     }
@@ -40,6 +63,7 @@ final class AppModel {
     }
 
     init() {
+        configureFaceSign(api)
         guard let persisted = sessionStore.load() else { return }
         api.restore(persisted.session, cookies: persisted.cookies)
         user = persisted.session.user
@@ -139,6 +163,7 @@ final class AppModel {
         let cookieStorage = HTTPCookieStorage.sharedCookieStorage(forGroupContainerIdentifier: "ordinary-sign-\(UUID().uuidString)")
         let otherAPI = ChaoxingAPI(http: HTTPClient(cookieStorage: cookieStorage))
         let cookies = storedAccount.cookies.compactMap(\.cookie)
+        configureFaceSign(otherAPI)
         otherAPI.restore(storedAccount.session, cookies: cookies)
         let preparation = try await otherAPI.prepareOrdinarySign(activity)
         if case .ready = preparation {
@@ -171,6 +196,7 @@ final class AppModel {
         let cookieStorage = HTTPCookieStorage.sharedCookieStorage(forGroupContainerIdentifier: "sign-\(UUID().uuidString)")
         let otherAPI = ChaoxingAPI(http: HTTPClient(cookieStorage: cookieStorage))
         let cookies = stored.cookies.compactMap(\.cookie)
+        configureFaceSign(otherAPI)
         otherAPI.restore(stored.session, cookies: cookies)
         do {
             return try await action(otherAPI)
@@ -253,6 +279,8 @@ final class AppModel {
     }
 
     func logout() {
+        faceSign.resetAll()
+        faceRequiredActivityIDs = []
         api.logout()
         sessionStore.clear()
         user = nil

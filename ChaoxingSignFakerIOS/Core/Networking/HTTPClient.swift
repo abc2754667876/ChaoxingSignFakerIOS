@@ -73,6 +73,10 @@ final class HTTPClient {
 
         do {
             return try await execute(request)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as URLError where error.code == .cancelled {
+            throw CancellationError()
         } catch let error as ChaoxingError {
             throw error
         } catch {
@@ -109,6 +113,10 @@ final class HTTPClient {
 
         do {
             return try await execute(request)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as URLError where error.code == .cancelled {
+            throw CancellationError()
         } catch let error as ChaoxingError {
             throw error
         } catch {

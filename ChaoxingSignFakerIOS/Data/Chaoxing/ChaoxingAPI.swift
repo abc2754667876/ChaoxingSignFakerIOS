@@ -18,8 +18,15 @@ final class ChaoxingAPI {
         static let cloudUpload = URL(string: "https://pan-yz.chaoxing.com/upload")!
     }
 
-    private let http: HTTPClient
+    let http: HTTPClient
     private(set) var session: ChaoxingSession?
+    var faceSignIsActive: ((Int64) -> Bool)?
+    var facePhotoProvider: ((ChaoxingAPI, ChaoxingActivity) async throws -> String)?
+    var facePhotoAccepted: ((Int64, Int) -> Void)?
+    var facePhotoRejected: ((Int64, Int) -> Void)?
+    var faceRequirementChanged: ((Int64, Bool) -> Void)?
+    private var signEnc2: [Int64: String] = [:]
+    private var faceRequirements: [Int64: Bool] = [:]
     private var cachedCloudToken: String?
 
     init(http: HTTPClient? = nil) {
@@ -31,6 +38,7 @@ final class ChaoxingAPI {
     }
 
     func restore(_ persistedSession: ChaoxingSession, cookies: [HTTPCookie]) {
+        if session?.user.uid != persistedSession.user.uid { faceRequirements = [:]; signEnc2 = [:] }
         session = persistedSession
         http.restore(cookies: cookies)
     }
@@ -46,6 +54,8 @@ final class ChaoxingAPI {
 
         http.clearChaoxingCookies()
         cachedCloudToken = nil
+        faceRequirements = [:]
+        signEnc2 = [:]
         let encryptedUser = try ChaoxingCrypto.encryptLoginValue(phoneNumber)
         let encryptedPassword = try ChaoxingCrypto.encryptLoginValue(password)
         let response = try await http.send(
@@ -83,6 +93,8 @@ final class ChaoxingAPI {
     func logout() {
         session = nil
         cachedCloudToken = nil
+        faceRequirements = [:]
+        signEnc2 = [:]
         http.clearChaoxingCookies()
     }
 
@@ -139,9 +151,6 @@ final class ChaoxingAPI {
         if isExpired(response.text) { return .expired(isPhotoRequired: isPhotoRequired) }
         if isAlreadySigned(response.text) { return .alreadySigned(isPhotoRequired: isPhotoRequired) }
 
-        guard info.integer("openCheckFaceFlag") != 1 else {
-            throw ChaoxingError.unsupportedSign("该活动要求人脸识别，当前版本暂未接入")
-        }
         guard info.integer("ifopenAddress") != 1 else {
             throw ChaoxingError.unsupportedSign("该活动要求位置信息，当前版本暂未接入")
         }
@@ -188,9 +197,6 @@ final class ChaoxingAPI {
             return .alreadySigned(isLocationRequired: isLocationRequired)
         }
 
-        guard info.integer("openCheckFaceFlag") != 1 else {
-            throw ChaoxingError.unsupportedSign("该活动要求人脸识别，当前版本暂未接入")
-        }
         guard info.integer("ifNeedVCode") != 1 else {
             throw ChaoxingError.captchaRequired
         }
@@ -256,8 +262,7 @@ final class ChaoxingAPI {
                 )
             )
         }
-        let response = try await http.send(Endpoint.ordinarySign, query: query)
-        return try parseSignResponse(response.text)
+        return try await performSign(activity, query: query)
     }
 
     func prepareCodeSign(_ activity: ChaoxingActivity) async throws -> CodeSignPreparation {
@@ -282,9 +287,6 @@ final class ChaoxingAPI {
                 codeLength: activity.kind == .password ? info.integer("numberCount") : nil,
                 isRefreshingQR: info.integer("ifrefreshewm") == 1
             )
-        }
-        guard info.integer("openCheckFaceFlag") != 1 else {
-            throw ChaoxingError.unsupportedSign("该活动要求人脸识别，当前版本暂未接入")
         }
         guard info.integer("ifNeedVCode") != 1 else {
             throw ChaoxingError.captchaRequired
@@ -367,8 +369,7 @@ final class ChaoxingAPI {
             query.append(URLQueryItem(name: "location", value: try locationJSON(location, includesMockData: false)))
             query.append(URLQueryItem(name: "locationResult", value: try locationJSON(location, includesMockData: true)))
         }
-        let response = try await http.send(Endpoint.ordinarySign, query: query)
-        return try parseSignResponse(response.text)
+        return try await performSign(activity, query: query, qrCode: qrCode)
     }
 
     func prepareLocationSign(_ activity: ChaoxingActivity) async throws -> LocationSignPreparation {
@@ -396,9 +397,6 @@ final class ChaoxingAPI {
         if isExpired(response.text) { return .expired(detail) }
         if isAlreadySigned(response.text) { return .alreadySigned(detail) }
 
-        guard info.integer("openCheckFaceFlag") != 1 else {
-            throw ChaoxingError.unsupportedSign("该活动要求人脸识别，当前版本暂未接入")
-        }
         guard info.integer("ifNeedVCode") != 1 else {
             throw ChaoxingError.captchaRequired
         }
@@ -418,8 +416,8 @@ final class ChaoxingAPI {
         let latitude = location.bd09Latitude
         let longitude = location.bd09Longitude
         let locationResult = try locationJSON(location, includesMockData: true)
-        let response = try await http.send(
-            Endpoint.ordinarySign,
+        return try await performSign(
+            activity,
             query: [
                 URLQueryItem(name: "name", value: current.user.name),
                 URLQueryItem(name: "address", value: location.address),
@@ -438,7 +436,6 @@ final class ChaoxingAPI {
                 URLQueryItem(name: "locationResult", value: locationResult)
             ]
         )
-        return try parseSignResponse(response.text)
     }
 
     private func submitSign(
@@ -462,14 +459,64 @@ final class ChaoxingAPI {
         if let objectID {
             query.append(URLQueryItem(name: "objectId", value: objectID))
         }
-        let response = try await http.send(
-            Endpoint.ordinarySign,
-            query: query
-        )
-        return try parseSignResponse(response.text)
+        return try await performSign(activity, query: query)
     }
 
-    private func parseSignResponse(_ responseText: String) throws -> OrdinarySignResult {
+    private func performSign(_ activity: ChaoxingActivity, query: [URLQueryItem], qrCode: ParsedSignQRCode? = nil) async throws -> OrdinarySignResult {
+        let current = try requireSession()
+        if faceRequirements[activity.id] == nil { _ = try await signInfo(activeID: activity.id) }
+        var isFaceRequired = faceRequirements[activity.id] == true
+        var enc2 = signEnc2[activity.id]
+        for attempt in 0..<2 {
+            try Task.checkCancellation()
+            var parameters = query
+            if isFaceRequired {
+                guard let facePhotoProvider else { throw ChaoxingError.faceRequired(enc2: enc2) }
+                let objectID = try await facePhotoProvider(self, activity)
+                guard !objectID.isEmpty else { throw ChaoxingError.invalidInput("请选择人脸照片") }
+                do {
+                    parameters += try await faceParameters(objectID: objectID, activeID: activity.id)
+                } catch let error as ChaoxingError {
+                    if case .faceFailed = error { facePhotoRejected?(activity.id, current.user.uid) }
+                    throw error
+                }
+            }
+            if let enc2 { parameters.append(URLQueryItem(name: "enc2", value: enc2)) }
+            // Photo selection can take time; check a refreshing QR again before submission.
+            if let qrCode, isFaceRequired {
+                guard try await checkQRCode(qrCode, for: activity) else {
+                    throw ChaoxingError.invalidInput("二维码已过期，请重新扫描")
+                }
+            }
+            try Task.checkCancellation()
+            if isFaceRequired, faceSignIsActive?(activity.id) == false { throw ChaoxingError.signCancelled }
+            guard session?.user.uid == current.user.uid else { throw ChaoxingError.sessionExpired }
+            let response = try await http.send(Endpoint.ordinarySign, query: parameters)
+            do {
+                let result = try parseSignResponse(response.text)
+                if isFaceRequired { facePhotoAccepted?(activity.id, current.user.uid) }
+                return result
+            }
+            catch ChaoxingError.faceRequired(let value) {
+                faceRequirements[activity.id] = true
+                faceRequirementChanged?(activity.id, true)
+                signEnc2[activity.id] = value
+                if attempt == 0 {
+                    isFaceRequired = true
+                    enc2 = value
+                } else {
+                    facePhotoRejected?(activity.id, current.user.uid)
+                    throw ChaoxingError.faceFailed("人脸校验未通过，请更换照片后重试")
+                }
+            } catch let error as ChaoxingError {
+                if case .faceFailed = error { facePhotoRejected?(activity.id, current.user.uid) }
+                throw error
+            }
+        }
+        throw ChaoxingError.faceFailed("人脸校验未通过，请重新提交")
+    }
+
+    func parseSignResponse(_ responseText: String) throws -> OrdinarySignResult {
         switch responseText.trimmingCharacters(in: .whitespacesAndNewlines) {
         case "success":
             return .success
@@ -480,7 +527,9 @@ final class ChaoxingAPI {
         case let value where value.hasPrefix("validate"):
             throw ChaoxingError.captchaRequired
         case let value where value.hasPrefix("checkFace_"):
-            throw ChaoxingError.unsupportedSign("该活动要求人脸识别，当前版本暂未接入")
+            throw ChaoxingError.faceRequired(enc2: String(value.dropFirst("checkFace_".count)).nilIfEmpty)
+        case let value where value.hasPrefix("[face]"):
+            throw ChaoxingError.faceFailed(String(value.dropFirst(6)).nilIfEmpty ?? "人脸校验未通过，请更换照片后重试")
         case let value where value.hasPrefix("errorLocation"):
             let distance = value.split(separator: "_").dropFirst().first.flatMap { Double($0) }
             throw ChaoxingError.outsideLocationRange(distance)
@@ -552,6 +601,20 @@ final class ChaoxingAPI {
         return objectID
     }
 
+    func loadFaceClientID() async throws -> String? {
+        let current = try requireSession()
+        if let clientID = current.user.clientID { return clientID }
+        let response = try await http.send(Endpoint.userInfo)
+        let root = try JSONReader.object(from: response.data)
+        guard let message = root.object("msg"), message.integer("uid") == current.user.uid else {
+            throw ChaoxingError.sessionExpired
+        }
+        var user = current.user
+        user.clientID = message.string("clientId")?.nilIfEmpty
+        session = ChaoxingSession(user: user, configuredFID: current.configuredFID, deviceCode: current.deviceCode)
+        return user.clientID
+    }
+
     private func requireSession() throws -> ChaoxingSession {
         guard let session else { throw ChaoxingError.sessionExpired }
         return session
@@ -566,6 +629,8 @@ final class ChaoxingAPI {
         guard let info = root.object("data") else {
             throw ChaoxingError.invalidResponse(root.string("errorMsg") ?? "无法获取签到详情")
         }
+        faceRequirements[activeID] = info.integer("openCheckFaceFlag") == 1
+        faceRequirementChanged?(activeID, faceRequirements[activeID] == true)
         return info
     }
 

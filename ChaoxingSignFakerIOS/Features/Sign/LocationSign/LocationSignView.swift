@@ -52,12 +52,15 @@ struct LocationSignView: View {
                 .foregroundStyle(state.isFailure ? .orange : .secondary)
                 .multilineTextAlignment(.center)
 
+            FaceSignRequirementLabel(model: model, activity: activity)
+
             controls
                 .padding(.top, 72)
         }
         .padding(.horizontal)
         .navigationTitle("位置签到")
         .navigationBarTitleDisplayMode(.inline)
+        .faceSignSupport(model: model, activity: activity)
         .task { await prepare() }
         .toolbar { ToolbarItem(placement: .topBarTrailing) { MultiAccountToolbar(model: model, multi: multi) } }
         .sheet(isPresented: $multi.isShowing) { MultiAccountChooser(model: model, multi: multi) }

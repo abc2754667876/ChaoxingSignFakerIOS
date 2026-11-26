@@ -12,6 +12,9 @@ enum ChaoxingError: LocalizedError, Equatable {
     case captchaRequired
     case outsideLocationRange(Double?)
     case signFailed(String)
+    case faceRequired(enc2: String?)
+    case faceFailed(String)
+    case signCancelled
     case duplicateDeviceSign
 
     var errorDescription: String? {
@@ -20,8 +23,13 @@ enum ChaoxingError: LocalizedError, Equatable {
              .invalidResponse(let message),
              .server(let message),
              .unsupportedSign(let message),
-             .signFailed(let message):
+             .signFailed(let message),
+             .faceFailed(let message):
             message
+        case .faceRequired:
+            "该活动需要人脸验证，请重新提交"
+        case .signCancelled:
+            "已取消本次签到，可重新提交"
         case .sessionExpired:
             "登录状态已失效，请重新登录"
         case .duplicateDeviceSign:

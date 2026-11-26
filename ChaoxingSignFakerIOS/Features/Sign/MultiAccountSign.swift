@@ -96,7 +96,10 @@ final class MultiAccountSign {
         if let user = model.user, targets.contains(user.uid) {
             statuses[user.uid] = .signing
             do { record(try await main(), for: user.uid) }
-            catch { if record(error, for: user.uid) { hasFailures = true } }
+            catch {
+                if record(error, for: user.uid) { hasFailures = true }
+                if error is CancellationError || (error as? ChaoxingError) == .signCancelled { return true }
+            }
         }
         for account in otherAccounts(current: model.user) where targets.contains(account.session.user.uid) {
             let uid = account.session.user.uid
@@ -106,6 +109,7 @@ final class MultiAccountSign {
                 record(result, for: uid)
             } catch {
                 if record(error, for: uid) { hasFailures = true }
+                if error is CancellationError || (error as? ChaoxingError) == .signCancelled { return true }
             }
         }
         return hasFailures

@@ -60,6 +60,8 @@ struct GestureSignView: View {
                         .foregroundStyle(isWarning ? .orange : .secondary)
                         .multilineTextAlignment(.center)
 
+                    FaceSignRequirementLabel(model: model, activity: activity)
+
                     if shouldShowPattern {
                         patternArea
                             .padding(.top, 24)
@@ -76,6 +78,7 @@ struct GestureSignView: View {
         }
         .navigationTitle("手势签到")
         .navigationBarTitleDisplayMode(.inline)
+        .faceSignSupport(model: model, activity: activity)
         .task { await prepare() }
         .toolbar { ToolbarItem(placement: .topBarTrailing) { MultiAccountToolbar(model: model, multi: multi) } }
         .sheet(isPresented: $multi.isShowing) { MultiAccountChooser(model: model, multi: multi) }

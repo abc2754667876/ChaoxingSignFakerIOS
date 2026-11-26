@@ -14,6 +14,7 @@ struct ChaoxingUser: Hashable, Codable, Sendable {
     let phoneNumber: String
     let avatarURL: URL?
     let schools: [ChaoxingSchool]
+    var clientID: String? = nil
 }
 
 struct ChaoxingCourse: Identifiable, Hashable, Sendable {

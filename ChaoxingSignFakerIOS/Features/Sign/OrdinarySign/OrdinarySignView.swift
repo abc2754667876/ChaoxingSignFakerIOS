@@ -72,6 +72,8 @@ struct OrdinarySignView: View {
             Text(message)
                 .font(.subheadline).foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+            FaceSignRequirementLabel(model: model, activity: activity)
+
             Button(action: performButtonAction) {
                 ZStack {
                     Capsule().fill(color).frame(height: 48)
@@ -273,6 +275,10 @@ struct OrdinarySignView: View {
                     userStatuses[currentUser.uid] = .expired
                     updateState(.expired)
                     return
+                case .signCancelled:
+                    userStatuses[currentUser.uid] = .failure(error.localizedDescription)
+                    updateState(.failure(error.localizedDescription))
+                    return
                 default:
                     failures += 1
                     userStatuses[currentUser.uid] = .failure(error.localizedDescription)
@@ -301,6 +307,10 @@ struct OrdinarySignView: View {
                 case .signExpired:
                     completedUserIDs.insert(user.uid)
                     userStatuses[user.uid] = .expired
+                case .signCancelled:
+                    userStatuses[user.uid] = .failure(error.localizedDescription)
+                    updateState(.failure(error.localizedDescription))
+                    return
                 default:
                     failures += 1
                     userStatuses[user.uid] = .failure(error.localizedDescription)

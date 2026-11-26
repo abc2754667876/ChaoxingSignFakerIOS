@@ -209,20 +209,13 @@ struct ProfileView: View {
     }
 
     private func photoAccountID(for user: ChaoxingUser) -> String { "profile-\(user.uid)" }
-    private func faceKey(for user: ChaoxingUser) -> String { "profile.faces.\(user.uid)" }
-
     private func loadFaces() {
-        guard let user = model.user,
-              let data = UserDefaults.standard.data(forKey: faceKey(for: user)) else {
-            faces = []
-            return
-        }
-        faces = (try? JSONDecoder().decode([OtherUserFace].self, from: data)) ?? []
+        guard let user = model.user else { faces = []; return }
+        faces = FacePhotoStore().photos(for: user, isCurrent: true)
     }
 
     private func saveFaces(_ updated: [OtherUserFace], for user: ChaoxingUser) throws {
-        let data = try JSONEncoder().encode(updated)
-        UserDefaults.standard.set(data, forKey: faceKey(for: user))
+        try FacePhotoStore().save(updated, for: user, isCurrent: true)
         faces = updated
     }
 

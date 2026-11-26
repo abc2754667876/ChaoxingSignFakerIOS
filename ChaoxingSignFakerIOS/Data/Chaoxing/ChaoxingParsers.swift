@@ -27,7 +27,8 @@ enum ChaoxingParsers {
             name: name,
             phoneNumber: phoneNumber,
             avatarURL: avatar.flatMap(URL.init(string:)),
-            schools: schools.map(ChaoxingSchool.init(id:name:)).sorted { $0.id < $1.id }
+            schools: schools.map(ChaoxingSchool.init(id:name:)).sorted { $0.id < $1.id },
+            clientID: message.string("clientId")
         )
     }
 
