@@ -31,17 +31,23 @@ struct LoginView: View {
                     Button {
                         Task { await model.login(phoneNumber: phoneNumber, password: password) }
                     } label: {
-                        HStack {
-                            Spacer()
+                        ZStack {
+                            Capsule()
+                                .fill(.blue)
+                                .frame(height: 48)
+                            
                             if model.isLoggingIn {
                                 ProgressView()
+                                    .tint(.white)
                             } else {
-                                Text("登录并加载课程")
+                                Text("登录")
+                                    .foregroundStyle(.white)
                             }
-                            Spacer()
                         }
                     }
                     .disabled(model.isLoggingIn || phoneNumber.isEmpty || password.isEmpty)
+                    .buttonStyle(.plain)
+                    .listRowBackground(Color.clear)
                 }
             }
             .navigationTitle("登录")
