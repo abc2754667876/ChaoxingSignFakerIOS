@@ -197,9 +197,10 @@ private final class FaceFixtureProtocol: URLProtocol {
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
+        let request = self.request.capturedForTesting
         let scenario = request.value(forHTTPHeaderField: "X-Face-Scenario") ?? ""
         let uid = request.value(forHTTPHeaderField: "X-Face-UID") ?? "1"
-        let query = Dictionary((URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems ?? []).map { ($0.name, $0.value ?? "") }, uniquingKeysWith: { first, _ in first })
+        let query = request.testParameters
         let body: String
         var status = 200
         switch request.url?.lastPathComponent {

@@ -20,6 +20,7 @@ final class ChaoxingAPI {
 
     let http: HTTPClient
     private(set) var session: ChaoxingSession?
+    var captchaProvider: ((ChaoxingAPI, ChaoxingActivity) async throws -> String)?
     var faceSignIsActive: ((Int64) -> Bool)?
     var facePhotoProvider: ((ChaoxingAPI, ChaoxingActivity) async throws -> String)?
     var facePhotoAccepted: ((Int64, Int) -> Void)?
@@ -31,6 +32,7 @@ final class ChaoxingAPI {
 
     init(http: HTTPClient? = nil) {
         self.http = http ?? HTTPClient()
+        self.http.requestRoute = ChaoxingSignRoute.route
     }
 
     var authenticationCookies: [HTTPCookie] {
@@ -154,9 +156,6 @@ final class ChaoxingAPI {
         guard info.integer("ifopenAddress") != 1 else {
             throw ChaoxingError.unsupportedSign("该活动要求位置信息，当前版本暂未接入")
         }
-        guard info.integer("ifNeedVCode") != 1 else {
-            throw ChaoxingError.captchaRequired
-        }
         return .ready(isPhotoRequired: isPhotoRequired)
     }
 
@@ -197,9 +196,6 @@ final class ChaoxingAPI {
             return .alreadySigned(isLocationRequired: isLocationRequired)
         }
 
-        guard info.integer("ifNeedVCode") != 1 else {
-            throw ChaoxingError.captchaRequired
-        }
         return .ready(isLocationRequired: isLocationRequired)
     }
 
@@ -287,9 +283,6 @@ final class ChaoxingAPI {
                 codeLength: activity.kind == .password ? info.integer("numberCount") : nil,
                 isRefreshingQR: info.integer("ifrefreshewm") == 1
             )
-        }
-        guard info.integer("ifNeedVCode") != 1 else {
-            throw ChaoxingError.captchaRequired
         }
         return .ready(
             isLocationRequired: info.integer("ifopenAddress") == 1,
@@ -397,9 +390,6 @@ final class ChaoxingAPI {
         if isExpired(response.text) { return .expired(detail) }
         if isAlreadySigned(response.text) { return .alreadySigned(detail) }
 
-        guard info.integer("ifNeedVCode") != 1 else {
-            throw ChaoxingError.captchaRequired
-        }
         return .ready(detail)
     }
 
@@ -467,12 +457,16 @@ final class ChaoxingAPI {
         if faceRequirements[activity.id] == nil { _ = try await signInfo(activeID: activity.id) }
         var isFaceRequired = faceRequirements[activity.id] == true
         var enc2 = signEnc2[activity.id]
-        for attempt in 0..<2 {
-            try Task.checkCancellation()
+        var captchaValidate: String?
+        var faceRetries = 0
+        var captchaRetries = 0
+        while true {
+            try checkSignContext(activity, uid: current.user.uid)
             var parameters = query
             if isFaceRequired {
                 guard let facePhotoProvider else { throw ChaoxingError.faceRequired(enc2: enc2) }
                 let objectID = try await facePhotoProvider(self, activity)
+                try checkSignContext(activity, uid: current.user.uid)
                 guard !objectID.isEmpty else { throw ChaoxingError.invalidInput("请选择人脸照片") }
                 do {
                     parameters += try await faceParameters(objectID: objectID, activeID: activity.id)
@@ -482,38 +476,62 @@ final class ChaoxingAPI {
                 }
             }
             if let enc2 { parameters.append(URLQueryItem(name: "enc2", value: enc2)) }
-            // Photo selection can take time; check a refreshing QR again before submission.
-            if let qrCode, isFaceRequired {
+            if let captchaValidate { parameters.append(URLQueryItem(name: "validate", value: captchaValidate)) }
+            if let qrCode {
                 guard try await checkQRCode(qrCode, for: activity) else {
                     throw ChaoxingError.invalidInput("二维码已过期，请重新扫描")
                 }
             }
-            try Task.checkCancellation()
-            if isFaceRequired, faceSignIsActive?(activity.id) == false { throw ChaoxingError.signCancelled }
-            guard session?.user.uid == current.user.uid else { throw ChaoxingError.sessionExpired }
-            let response = try await http.send(Endpoint.ordinarySign, query: parameters)
+            try checkSignContext(activity, uid: current.user.uid)
+            let response = try await http.send(
+                Endpoint.ordinarySign,
+                method: "POST",
+                form: parameters.map { ($0.name, $0.value ?? "") },
+                headers: [
+                    "Referer": preSignURL(activity: activity, session: current).absoluteString,
+                    "X-Requested-With": "XMLHttpRequest"
+                ]
+            )
+            try checkSignContext(activity, uid: current.user.uid)
             do {
                 let result = try parseSignResponse(response.text)
+                signEnc2[activity.id] = nil
                 if isFaceRequired { facePhotoAccepted?(activity.id, current.user.uid) }
                 return result
-            }
-            catch ChaoxingError.faceRequired(let value) {
+            } catch ChaoxingError.faceRequired(let value) {
                 faceRequirements[activity.id] = true
                 faceRequirementChanged?(activity.id, true)
                 signEnc2[activity.id] = value
-                if attempt == 0 {
-                    isFaceRequired = true
-                    enc2 = value
-                } else {
+                enc2 = value
+                guard faceRetries < 1 else {
                     facePhotoRejected?(activity.id, current.user.uid)
                     throw ChaoxingError.faceFailed("人脸校验未通过，请更换照片后重试")
                 }
+                faceRetries += 1
+                isFaceRequired = true
+            } catch ChaoxingError.captchaRequired(let value) {
+                signEnc2[activity.id] = value
+                enc2 = value
+                guard captchaRetries < 2 else {
+                    throw ChaoxingError.captchaFailed("验证码凭证未被接受，请重新提交签到")
+                }
+                guard let captchaProvider else { throw ChaoxingError.captchaRequired(enc2: value) }
+                captchaRetries += 1
+                let validate = try await captchaProvider(self, activity)
+                try checkSignContext(activity, uid: current.user.uid)
+                guard !validate.isEmpty else { throw ChaoxingError.captchaFailed("验证码凭证为空，请重试") }
+                captchaValidate = validate
             } catch let error as ChaoxingError {
                 if case .faceFailed = error { facePhotoRejected?(activity.id, current.user.uid) }
                 throw error
             }
         }
-        throw ChaoxingError.faceFailed("人脸校验未通过，请重新提交")
+    }
+
+    private func checkSignContext(_ activity: ChaoxingActivity, uid: Int) throws {
+        try Task.checkCancellation()
+        guard session?.user.uid == uid else { throw ChaoxingError.sessionExpired }
+        if faceSignIsActive?(activity.id) == false { throw ChaoxingError.signCancelled }
     }
 
     func parseSignResponse(_ responseText: String) throws -> OrdinarySignResult {
@@ -524,8 +542,10 @@ final class ChaoxingAPI {
             throw ChaoxingError.signExpired
         case "您已签到过了":
             throw ChaoxingError.alreadySigned
-        case let value where value.hasPrefix("validate"):
-            throw ChaoxingError.captchaRequired
+        case "validate":
+            throw ChaoxingError.captchaRequired(enc2: nil)
+        case let value where value.hasPrefix("validate_"):
+            throw ChaoxingError.captchaRequired(enc2: String(value.dropFirst("validate_".count)).nilIfEmpty)
         case let value where value.hasPrefix("checkFace_"):
             throw ChaoxingError.faceRequired(enc2: String(value.dropFirst("checkFace_".count)).nilIfEmpty)
         case let value where value.hasPrefix("[face]"):
@@ -634,7 +654,7 @@ final class ChaoxingAPI {
         return info
     }
 
-    private func preSignURL(activity: ChaoxingActivity, session: ChaoxingSession) -> URL {
+    func preSignURL(activity: ChaoxingActivity, session: ChaoxingSession) -> URL {
         var components = URLComponents(url: Endpoint.preSign, resolvingAgainstBaseURL: false)!
         components.queryItems = [
             URLQueryItem(name: "courseId", value: String(activity.course.courseID)),

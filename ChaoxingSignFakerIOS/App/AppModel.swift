@@ -6,6 +6,7 @@ import Observation
 final class AppModel {
     private let api = ChaoxingAPI()
     let faceSign = FaceSignCoordinator()
+    let captcha = CaptchaCoordinator()
     var faceRequiredActivityIDs: Set<Int64> = []
     private let courseFavoritesStore = CourseFavoritesStore()
     private let sessionStore = ChaoxingSessionStore()
@@ -33,7 +34,11 @@ final class AppModel {
         sessionStore.save(session: updated, cookies: cookies)
     }
 
-    private func configureFaceSign(_ api: ChaoxingAPI) {
+    private func configureSignVerification(_ api: ChaoxingAPI) {
+        api.captchaProvider = { [weak self] api, activity in
+            guard let self else { throw ChaoxingError.signCancelled }
+            return try await self.captcha.resolve(api: api, activity: activity)
+        }
         api.faceSignIsActive = { [weak self] activityID in
             self?.faceSign.isActive(activityID: activityID) ?? false
         }
@@ -63,7 +68,7 @@ final class AppModel {
     }
 
     init() {
-        configureFaceSign(api)
+        configureSignVerification(api)
         guard let persisted = sessionStore.load() else { return }
         api.restore(persisted.session, cookies: persisted.cookies)
         user = persisted.session.user
@@ -163,7 +168,7 @@ final class AppModel {
         let cookieStorage = HTTPCookieStorage.sharedCookieStorage(forGroupContainerIdentifier: "ordinary-sign-\(UUID().uuidString)")
         let otherAPI = ChaoxingAPI(http: HTTPClient(cookieStorage: cookieStorage))
         let cookies = storedAccount.cookies.compactMap(\.cookie)
-        configureFaceSign(otherAPI)
+        configureSignVerification(otherAPI)
         otherAPI.restore(storedAccount.session, cookies: cookies)
         let preparation = try await otherAPI.prepareOrdinarySign(activity)
         if case .ready = preparation {
@@ -196,7 +201,7 @@ final class AppModel {
         let cookieStorage = HTTPCookieStorage.sharedCookieStorage(forGroupContainerIdentifier: "sign-\(UUID().uuidString)")
         let otherAPI = ChaoxingAPI(http: HTTPClient(cookieStorage: cookieStorage))
         let cookies = stored.cookies.compactMap(\.cookie)
-        configureFaceSign(otherAPI)
+        configureSignVerification(otherAPI)
         otherAPI.restore(stored.session, cookies: cookies)
         do {
             return try await action(otherAPI)
@@ -280,6 +285,7 @@ final class AppModel {
 
     func logout() {
         faceSign.resetAll()
+        captcha.resetAll()
         faceRequiredActivityIDs = []
         api.logout()
         sessionStore.clear()

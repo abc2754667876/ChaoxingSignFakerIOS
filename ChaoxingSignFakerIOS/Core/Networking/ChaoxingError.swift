@@ -9,7 +9,8 @@ enum ChaoxingError: LocalizedError, Equatable {
     case alreadySigned
     case signExpired
     case notInClass
-    case captchaRequired
+    case captchaRequired(enc2: String?)
+    case captchaFailed(String)
     case outsideLocationRange(Double?)
     case signFailed(String)
     case faceRequired(enc2: String?)
@@ -24,7 +25,8 @@ enum ChaoxingError: LocalizedError, Equatable {
              .server(let message),
              .unsupportedSign(let message),
              .signFailed(let message),
-             .faceFailed(let message):
+             .faceFailed(let message),
+             .captchaFailed(let message):
             message
         case .faceRequired:
             "该活动需要人脸验证，请重新提交"
@@ -41,7 +43,7 @@ enum ChaoxingError: LocalizedError, Equatable {
         case .notInClass:
             "当前账号不在该班级"
         case .captchaRequired:
-            "本次签到需要滑块验证码，当前版本暂未接入"
+            "本次签到需要完成滑块验证"
         case .outsideLocationRange(let distance):
             if let distance {
                 "位置不在设置范围内，距离签到点\(distance.formatted(.number.precision(.fractionLength(0...1))))米"

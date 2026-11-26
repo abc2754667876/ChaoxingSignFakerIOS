@@ -139,8 +139,7 @@ private final class QRCodeFixtureProtocol: URLProtocol {
                 body = JSONReader.string(from: detail)
             }
         case "stuSignajax":
-            let query = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems ?? []
-            let enc = query.first { $0.name == "enc" }?.value
+            let enc = request.testParameters["enc"]
             if enc != "token" {
                 body = "missing enc"
             } else {

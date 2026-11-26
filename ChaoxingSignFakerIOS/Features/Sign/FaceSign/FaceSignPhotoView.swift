@@ -180,27 +180,6 @@ struct FaceSignPhotoView: View {
     }
 }
 
-private struct FaceSignSupport: ViewModifier {
-    let model: AppModel
-    let activity: ChaoxingActivity
-
-    func body(content: Content) -> some View {
-        @Bindable var coordinator = model.faceSign
-        content
-            .sheet(item: $coordinator.request, onDismiss: { coordinator.dismissSelection() }) { request in
-                FaceSignPhotoView(request: request, coordinator: coordinator)
-            }
-            .onAppear { coordinator.activate(activityID: activity.id) }
-            .onDisappear { coordinator.reset(activityID: activity.id) }
-    }
-}
-
-extension View {
-    func faceSignSupport(model: AppModel, activity: ChaoxingActivity) -> some View {
-        modifier(FaceSignSupport(model: model, activity: activity))
-    }
-}
-
 struct FaceSignRequirementLabel: View {
     let model: AppModel
     let activity: ChaoxingActivity

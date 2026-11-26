@@ -3,6 +3,15 @@ import Foundation
 enum ChaoxingCrypto {
     private static let transferKey = "u2oh6Vu^HWe4_AES"
 
+    static func md5(_ value: String) -> String {
+        let data = Data(value.utf8)
+        var digest = [UInt8](repeating: 0, count: Int(CC_MD5_DIGEST_LENGTH))
+        data.withUnsafeBytes { bytes in
+            _ = CC_MD5(bytes.baseAddress, CC_LONG(data.count), &digest)
+        }
+        return digest.map { String(format: "%02x", $0) }.joined()
+    }
+
     static func encryptLoginValue(_ value: String) throws -> String {
         let key = Array(transferKey.utf8)
         let input = Array(value.utf8)

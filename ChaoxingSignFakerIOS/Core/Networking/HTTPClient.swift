@@ -14,6 +14,7 @@ final class HTTPClient {
 
     private let session: URLSession
     private let cookieStorage: HTTPCookieStorage
+    var requestRoute: ((URLRequest) -> HTTPRequestRoute?)?
 
     init(
         cookieStorage: HTTPCookieStorage = .shared,
@@ -125,7 +126,53 @@ final class HTTPClient {
     }
 
     private func execute(_ request: URLRequest) async throws -> HTTPResponse {
+        let result: (Data, URLResponse)
+        if let route = requestRoute?(request), let logicalURL = route.fallback.url {
+            var primary = route.primary
+            primary.httpShouldHandleCookies = false
+            if primary.value(forHTTPHeaderField: "Cookie") == nil {
+                let cookies = cookieStorage.cookies(for: logicalURL) ?? []
+                HTTPCookie.requestHeaderFields(with: cookies).forEach {
+                    primary.setValue($1, forHTTPHeaderField: $0)
+                }
+            }
+            var fallback = route.fallback
+            fallback.httpShouldHandleCookies = false
+            fallback.setValue(primary.value(forHTTPHeaderField: "Cookie"), forHTTPHeaderField: "Cookie")
+            let routedResult: (Data, URLResponse)
+            do {
+                routedResult = try await session.data(for: primary)
+            } catch let error as URLError where error.code != .cancelled {
+                try Task.checkCancellation()
+                return try await executeDirect(fallback, cookieURL: logicalURL)
+            }
+            try Task.checkCancellation()
+            if let response = routedResult.1 as? HTTPURLResponse {
+                saveCookies(response, for: logicalURL)
+                if response.statusCode == 404 { return try await executeDirect(fallback, cookieURL: logicalURL) }
+            }
+            result = routedResult
+        } else {
+            result = try await session.data(for: request)
+        }
+        return try checkedResponse(data: result.0, response: result.1)
+    }
+
+    private func executeDirect(_ request: URLRequest, cookieURL: URL) async throws -> HTTPResponse {
+        try Task.checkCancellation()
         let (data, response) = try await session.data(for: request)
+        if let response = response as? HTTPURLResponse { saveCookies(response, for: cookieURL) }
+        return try checkedResponse(data: data, response: response)
+    }
+
+    private func saveCookies(_ response: HTTPURLResponse, for url: URL) {
+        let headers = response.allHeaderFields.reduce(into: [String: String]()) {
+            if let key = $1.key as? String { $0[key] = String(describing: $1.value) }
+        }
+        HTTPCookie.cookies(withResponseHeaderFields: headers, for: url).forEach(cookieStorage.setCookie)
+    }
+
+    private func checkedResponse(data: Data, response: URLResponse) throws -> HTTPResponse {
         guard let response = response as? HTTPURLResponse else {
             throw ChaoxingError.invalidResponse("服务器响应无效")
         }

@@ -63,6 +63,13 @@ Repository 抽象接口目录。
 ### Features/Sign
 所有签到流程的总目录。
 
+`SignVerificationSupport` 为签到页面提供统一的人脸与验证码弹窗，前一个弹窗关闭后才恢复提交。所有签到类型在 `ChaoxingAPI.performSign` 处理验证要求、保留原参数并有限重试；验证码凭证仅用于当前账号的本次提交。
+
+签到通过表单 POST 提交，附带原域名预签到页的 `Referer` 和 `X-Requested-With: XMLHttpRequest`。`ChaoxingSignRoute` 对齐安卓端，将 `mobilelearn.chaoxing.com` 请求路由至 `data-xxt.aichaoxing.com` 并保留原 Host；网络错误或 404 时回退原域名。网络层按原域名维护当前账号 Cookie，验证码地址与来源参数保持原域名。
+
+#### Captcha/
+手动滑块验证功能。`CaptchaCoordinator` 管理异步等待和取消，`CaptchaView` 展示图片、拖动、校验与刷新。验证码接口位于 `Data/Chaoxing/ChaoxingCaptchaAPI.swift`。离开签到页或退出登录时取消等待；二维码在验证后提交前重新检查有效性。当前不包含模型自动识别。
+
 #### LocationSign/
 位置签到功能。职责：
 - 展示地图。

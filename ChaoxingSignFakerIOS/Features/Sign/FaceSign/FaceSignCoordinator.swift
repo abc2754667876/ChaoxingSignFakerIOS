@@ -37,14 +37,18 @@ final class FaceSignCoordinator {
         guard continuation == nil else { throw ChaoxingError.invalidInput("请先完成当前账号的人脸照片选择") }
         let next = Request(activityID: activity.id, user: user, isCurrent: user.uid == currentUID, api: api)
         return try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { continuation in
+            try Task.checkCancellation()
+            return try await withCheckedThrowingContinuation { continuation in
                 self.continuation = continuation
                 pending = next
                 result = nil
                 request = next
             }
         } onCancel: {
-            Task { @MainActor in self.cancel(activityID: activity.id) }
+            Task { @MainActor in
+                guard self.pending?.id == next.id else { return }
+                self.cancel(activityID: activity.id)
+            }
         }
     }
 
@@ -55,7 +59,8 @@ final class FaceSignCoordinator {
         request = nil
     }
 
-    func dismissSelection() {
+    func dismissSelection(requestID: UUID? = nil) {
+        if let requestID, pending?.id != requestID { return }
         guard let continuation else { return }
         let result = result ?? .failure(ChaoxingError.signCancelled)
         self.continuation = nil
