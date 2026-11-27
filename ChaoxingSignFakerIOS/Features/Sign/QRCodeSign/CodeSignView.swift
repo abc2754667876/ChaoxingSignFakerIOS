@@ -1,4 +1,3 @@
-import AVFoundation
 import SwiftUI
 
 struct CodeSignView: View {
@@ -11,6 +10,9 @@ struct CodeSignView: View {
     let model: AppModel
     let activity: ChaoxingActivity
     let mode: Mode
+    var initialQRCode: ParsedSignQRCode? = nil
+
+    @State private var didConsumeInitialQRCode = false
 
     @State private var state: State = .loading
     @State private var isPrepared = false
@@ -275,6 +277,7 @@ struct CodeSignView: View {
                 isRefreshingQR = refreshing
                 isPrepared = true
                 state = .ready
+                await consumeInitialQRCode()
             case .alreadySigned(let locationRequired, let length, let refreshing):
                 isLocationRequired = locationRequired
                 codeLength = length
@@ -282,6 +285,11 @@ struct CodeSignView: View {
                 isPrepared = true
                 multi.markCurrent(model.user, as: .alreadySigned)
                 state = .ready
+                // Keep the credential available if other accounts are selected later.
+                if !didConsumeInitialQRCode, let initialQRCode {
+                    didConsumeInitialQRCode = true
+                    qrCode = initialQRCode
+                }
             case .expired: state = .expired
             }
         } catch { state = .failure(error.localizedDescription) }
@@ -298,15 +306,30 @@ struct CodeSignView: View {
         } catch { state = .failure(error.localizedDescription) }
     }
 
+    private func consumeInitialQRCode() async {
+        guard !Task.isCancelled, mode == .qrCode, !didConsumeInitialQRCode, let initialQRCode else { return }
+        didConsumeInitialQRCode = true
+        await handleQR(initialQRCode)
+    }
+
     private func handleQR(_ raw: String) async {
+        do {
+            await handleQR(try ParsedSignQRCode(raw))
+        } catch {
+            qrCode = nil
+            state = .failure(error.localizedDescription)
+        }
+    }
+
+    private func handleQR(_ parsed: ParsedSignQRCode) async {
         state = .checking
         qrCode = nil
         do {
-            let parsed = try ParsedSignQRCode(raw)
             guard try await model.checkQRCode(parsed, for: activity) else {
                 state = .failure("二维码已过期，请重新扫描")
                 return
             }
+            try Task.checkCancellation()
             qrCode = parsed
             await proceed()
         } catch ChaoxingError.signExpired {
@@ -362,71 +385,4 @@ struct CodeSignView: View {
 
 private extension CodeSignView.State {
     var isFailure: Bool { if case .failure = self { true } else { false } }
-}
-
-private struct SignQRScanner: UIViewControllerRepresentable {
-    let onScan: (String) -> Void
-
-    func makeUIViewController(context: Context) -> ScannerController {
-        let controller = ScannerController()
-        controller.onScan = onScan
-        return controller
-    }
-
-    func updateUIViewController(_ controller: ScannerController, context: Context) {}
-}
-
-private final class ScannerController: UIViewController, AVCaptureMetadataOutputObjectsDelegate {
-    var onScan: ((String) -> Void)?
-    private let session = AVCaptureSession()
-    private var preview: AVCaptureVideoPreviewLayer?
-    private var didScan = false
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        view.backgroundColor = .black
-        Task { @MainActor in
-            let granted = await AVCaptureDevice.requestAccess(for: .video)
-            guard granted else {
-                let label = UILabel()
-                label.text = "请在系统设置中允许相机权限后重试"
-                label.textColor = .white
-                label.textAlignment = .center
-                label.frame = view.bounds
-                label.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-                view.addSubview(label)
-                return
-            }
-            guard let device = AVCaptureDevice.default(for: .video),
-                  let input = try? AVCaptureDeviceInput(device: device), session.canAddInput(input) else { return }
-            session.addInput(input)
-            let output = AVCaptureMetadataOutput()
-            guard session.canAddOutput(output) else { return }
-            session.addOutput(output)
-            output.setMetadataObjectsDelegate(self, queue: .main)
-            output.metadataObjectTypes = [.qr]
-            let layer = AVCaptureVideoPreviewLayer(session: session)
-            layer.videoGravity = .resizeAspectFill
-            layer.frame = view.bounds
-            view.layer.addSublayer(layer)
-            preview = layer
-            Task.detached { [session] in session.startRunning() }
-        }
-    }
-
-    override func viewDidLayoutSubviews() {
-        super.viewDidLayoutSubviews()
-        preview?.frame = view.bounds
-    }
-
-    override func viewWillDisappear(_ animated: Bool) {
-        super.viewWillDisappear(animated)
-        Task.detached { [session] in session.stopRunning() }
-    }
-
-    func metadataOutput(_ output: AVCaptureMetadataOutput, didOutput metadataObjects: [AVMetadataObject], from connection: AVCaptureConnection) {
-        guard !didScan, let value = (metadataObjects.first as? AVMetadataMachineReadableCodeObject)?.stringValue else { return }
-        didScan = true
-        onScan?(value)
-    }
 }

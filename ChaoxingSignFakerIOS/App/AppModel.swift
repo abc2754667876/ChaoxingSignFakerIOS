@@ -267,6 +267,16 @@ final class AppModel {
         try await api.signLocation(activity, location: location)
     }
 
+    func activity(for code: ParsedSignQRCode) async throws -> ChaoxingActivity {
+        guard user != nil else { throw ChaoxingError.sessionExpired }
+        return try await SignQRCodeActivityResolver.resolve(
+            code,
+            cachedActivities: ongoingActivities,
+            loadCourses: { try await self.api.courses() },
+            loadActivities: { try await self.api.activities(for: $0) }
+        )
+    }
+
     func prepareCodeSign(_ activity: ChaoxingActivity) async throws -> CodeSignPreparation {
         try await api.prepareCodeSign(activity)
     }

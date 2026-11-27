@@ -9,6 +9,7 @@ import SwiftUI
 
 struct HomeView: View {
     @Bindable var model: AppModel
+    @State private var isShowingQRSign = false
 
     var body: some View {
         NavigationStack {
@@ -136,11 +137,16 @@ struct HomeView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(action: {}) {
+                    Button {
+                        isShowingQRSign = true
+                    } label: {
                         Image(systemName: ChaoxingSignKind.qrCode.systemImage)
-                        // TODO: 扫码签到，暂不实现，此TODO保留
                     }
+                    .accessibilityLabel("扫码签到")
                 }
+            }
+            .sheet(isPresented: $isShowingQRSign) {
+                HomeQRSignView(model: model)
             }
             .task {
                 if model.courses.isEmpty {
