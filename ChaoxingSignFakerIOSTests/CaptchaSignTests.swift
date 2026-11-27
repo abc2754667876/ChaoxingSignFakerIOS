@@ -20,7 +20,8 @@ struct CaptchaSignTests {
             #expect(challenge.token == "server-token")
             return try #require(try await api.checkCaptcha(challenge, progress: 0.5, for: activity))
         }
-        let location = ChaoxingSignLocation(address: "Test", wgs84Coordinate: CLLocationCoordinate2D(latitude: 30, longitude: 120))
+        let originalLocation = ChaoxingSignLocation(address: "Test", wgs84Coordinate: CLLocationCoordinate2D(latitude: 30, longitude: 120))
+        let location = kind == "location" ? originalLocation.randomizedWithinSevenMeters() : originalLocation
         let result: OrdinarySignResult
         switch kind {
         case "photo": result = try await api.signPhoto(activity, jpegData: Data([1, 2, 3]))
@@ -38,6 +39,14 @@ struct CaptchaSignTests {
         for (key, value) in original { #expect(retried[key] == value) }
         #expect(retried["validate"] == "validated-1")
         #expect(retried["enc2"] == "captcha-enc")
+        if kind == "location" {
+            #expect(Double(try #require(original["latitude"])) == location.bd09Latitude)
+            #expect(Double(try #require(original["longitude"])) == location.bd09Longitude)
+            let data = Data(try #require(original["locationResult"]).utf8)
+            let payload = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            #expect(payload["latitude"] as? Double == location.bd09Latitude)
+            #expect(payload["longitude"] as? Double == location.bd09Longitude)
+        }
         #expect(fixture.requests("upload").count == (kind == "photo" ? 1 : 0))
         let image = query(try #require(fixture.requests("image").first))
         #expect(image["token"] == ChaoxingCrypto.md5("1700000000000Qt9FIw9o4pwRjOyqM6yizZBh682qN2TUslide\(image["captchaKey"] ?? "")") + ":1700000300000")

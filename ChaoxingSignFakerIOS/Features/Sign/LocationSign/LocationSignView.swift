@@ -134,7 +134,7 @@ struct LocationSignView: View {
 
                             Button("确认签到") {
                                 isShowingLocations = false
-                                Task { await sign(location.signLocation) }
+                                Task { await sign(location.signLocation, isSavedLocation: true) }
                             }
                             .buttonStyle(.borderedProminent)
                         }
@@ -261,18 +261,20 @@ struct LocationSignView: View {
         }
     }
 
-    private func sign(_ location: ChaoxingSignLocation) async {
+    private func sign(_ location: ChaoxingSignLocation, isSavedLocation: Bool = false) async {
         guard !multi.pendingIDs(current: model.user).isEmpty else { updateState(.ready); return }
         updateState(.signing)
         let failed = await multi.sign(model: model) {
-            try await model.signForCurrent { api in
-                _ = try await api.signLocation(activity, location: location)
+            let submission = isSavedLocation ? location.randomizedWithinSevenMeters() : location
+            return try await model.signForCurrent { api in
+                _ = try await api.signLocation(activity, location: submission)
                 return .success
             }
         } other: { api in
             switch try await api.prepareLocationSign(activity) {
             case .ready:
-                _ = try await api.signLocation(activity, location: location)
+                let submission = isSavedLocation ? location.randomizedWithinSevenMeters() : location
+                _ = try await api.signLocation(activity, location: submission)
                 return .success
             case .alreadySigned: return .alreadySigned
             case .expired: return .expired

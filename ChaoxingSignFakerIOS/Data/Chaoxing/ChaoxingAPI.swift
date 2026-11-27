@@ -402,7 +402,7 @@ final class ChaoxingAPI {
             throw ChaoxingError.unsupportedSign("该活动不是位置签到")
         }
 
-        // One rounded BD-09 pair for both representations; no extra conversion/jitter.
+        // Reuse the supplied BD-09 pair for both representations and verification retries.
         let latitude = location.bd09Latitude
         let longitude = location.bd09Longitude
         let locationResult = try locationJSON(location, includesMockData: true)

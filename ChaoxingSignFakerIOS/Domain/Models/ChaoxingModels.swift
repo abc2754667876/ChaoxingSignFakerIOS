@@ -100,6 +100,35 @@ struct ChaoxingSignLocation: Equatable, Sendable {
         bd09Latitude = (coordinate.latitude * 1_000_000).rounded() / 1_000_000
         bd09Longitude = (coordinate.longitude * 1_000_000).rounded() / 1_000_000
     }
+
+    func randomizedWithinSevenMeters() -> ChaoxingSignLocation {
+        let distance = 7 * sqrt(Double.random(in: 0..<1))
+        let bearing = Double.random(in: 0..<(2 * .pi))
+        // An upper bound on Earth's curvature radius keeps the offset within 7 m.
+        let angularDistance = distance / 6_400_000
+        let latitude = bd09Latitude * .pi / 180
+        let longitude = bd09Longitude * .pi / 180
+        let shiftedLatitude = asin(
+            sin(latitude) * cos(angularDistance)
+                + cos(latitude) * sin(angularDistance) * cos(bearing)
+        )
+        let shiftedLongitude = longitude + atan2(
+            sin(bearing) * sin(angularDistance) * cos(latitude),
+            cos(angularDistance) - sin(latitude) * sin(shiftedLatitude)
+        )
+        return ChaoxingSignLocation(
+            address: address,
+            bd09Latitude: shiftedLatitude * 180 / .pi,
+            bd09Longitude: (shiftedLongitude * 180 / .pi + 540)
+                .truncatingRemainder(dividingBy: 360) - 180
+        )
+    }
+
+    private init(address: String, bd09Latitude: Double, bd09Longitude: Double) {
+        self.address = address
+        self.bd09Latitude = bd09Latitude
+        self.bd09Longitude = bd09Longitude
+    }
 }
 
 struct LocationSignDetail: Equatable, Sendable {

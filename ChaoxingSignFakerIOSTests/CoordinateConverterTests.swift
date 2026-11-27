@@ -3,6 +3,25 @@ import Testing
 @testable import ChaoxingSignFakerIOS
 
 struct CoordinateConverterTests {
+    @Test(arguments: [0.0, 39.0, 80.0, -80.0])
+    func randomizesSavedSubmissionWithinSevenMeters(_ latitude: Double) {
+        let favorite = SavedLocation(
+            address: "收藏地址", name: "收藏位置", latitude: latitude, longitude: 120
+        )
+        let original = favorite.signLocation
+        let origin = CLLocation(latitude: original.bd09Latitude, longitude: original.bd09Longitude)
+        var previous = original
+        for _ in 0..<128 {
+            let submission = original.randomizedWithinSevenMeters()
+            let shifted = CLLocation(latitude: submission.bd09Latitude, longitude: submission.bd09Longitude)
+            #expect(origin.distance(from: shifted) <= 7)
+            #expect(submission.address == original.address)
+            #expect(submission != previous)
+            previous = submission
+        }
+        #expect(favorite.signLocation == original)
+    }
+
     private let buildingWGS84 = CLLocationCoordinate2D(
         latitude: 39.06276057041804,
         longitude: 117.12602571810434
